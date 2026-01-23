@@ -22,6 +22,10 @@
 			{
 				"name": "Chat",
 				"class_name": "Chat"
+			},
+			{
+				"name": "PaperScout",
+				"class_name": "PaperScout"
 			}
 		]
 	},
@@ -29,7 +33,8 @@
 		{
 			"tag": "v1",
 			"new_sqlite_classes": [
-				"Chat"
+				"Chat",
+				"PaperScout"
 			]
 		}
 	],
