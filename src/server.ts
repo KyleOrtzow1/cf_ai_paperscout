@@ -102,7 +102,12 @@ export class PaperScout extends AIChatAgent<Env, PaperScoutState> {
 
         // Create Workers AI model per-request using the AI binding
         const workersai = createWorkersAI({ binding: this.env.AI });
-        const model = workersai("@cf/meta/llama-3.3-70b-instruct-fp8-fast");
+        // Using llama-3.3-70b-instruct-fp8-fast for quality + speed balance
+        const model = workersai(
+          "@cf/meta/llama-3.3-70b-instruct-fp8-fast" as Parameters<
+            typeof workersai
+          >[0]
+        );
 
         const result = streamText({
           system: `# PaperScout — AI Research Assistant
