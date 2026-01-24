@@ -71,7 +71,7 @@ export default function Chat() {
   };
 
   const agent = useAgent({
-    agent: "chat"
+    agent: "paper-scout"
   });
 
   const [agentInput, setAgentInput] = useState("");

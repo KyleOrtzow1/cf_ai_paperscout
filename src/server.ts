@@ -16,6 +16,7 @@ import {
 import { openai } from "@ai-sdk/openai";
 import { processToolCalls, cleanupMessages } from "./utils";
 import { tools, executions } from "./tools";
+import type { PaperScoutState } from "./shared";
 // import { env } from "cloudflare:workers";
 
 const model = openai("gpt-4o-2024-11-20");
@@ -26,9 +27,56 @@ const model = openai("gpt-4o-2024-11-20");
 // });
 
 /**
- * Chat Agent implementation that handles real-time AI chat interactions
+ * PaperScout Agent - AI-powered research paper discovery and management
  */
-export class Chat extends AIChatAgent<Env> {
+export class PaperScout extends AIChatAgent<Env, PaperScoutState> {
+  /**
+   * Initial state with default preferences and empty library
+   */
+  initialState: PaperScoutState = {
+    preferences: {
+      defaultMaxResults: 5,
+      recencyDays: 30,
+      categories: ["cs.AI", "cs.LG"]
+    },
+    libraryPreview: []
+  };
+
+  /**
+   * Initialize database tables on agent start
+   */
+  async onStart(): Promise<void> {
+    // Create saved_papers table
+    this.sql`
+      CREATE TABLE IF NOT EXISTS saved_papers (
+        arxiv_id TEXT PRIMARY KEY,
+        title TEXT,
+        authors_json TEXT,
+        published TEXT,
+        updated TEXT,
+        abstract TEXT,
+        url TEXT,
+        tags_json TEXT,
+        saved_at INTEGER
+      )
+    `;
+
+    // Index for efficient "recent saves" queries
+    this.sql`
+      CREATE INDEX IF NOT EXISTS idx_saved_papers_saved_at 
+      ON saved_papers(saved_at)
+    `;
+
+    // Create paper_summaries table (cache, no FK)
+    this.sql`
+      CREATE TABLE IF NOT EXISTS paper_summaries (
+        arxiv_id TEXT PRIMARY KEY,
+        summary_md TEXT,
+        created_at INTEGER
+      )
+    `;
+  }
+
   /**
    * Handles incoming chat messages and manages the response stream
    */
