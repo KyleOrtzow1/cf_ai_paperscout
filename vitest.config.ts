@@ -17,7 +17,11 @@ export default defineWorkersConfig({
     },
     poolOptions: {
       workers: {
-        wrangler: { configPath: "./wrangler.jsonc" }
+        wrangler: { configPath: "./wrangler.jsonc" },
+        miniflare: {
+          // Force local AI binding to avoid requiring Wrangler authentication in CI
+          ai: { binding: "AI" }
+        }
       }
     }
   }
