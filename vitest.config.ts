@@ -17,7 +17,8 @@ export default defineWorkersConfig({
     },
     poolOptions: {
       workers: {
-        wrangler: { configPath: "./wrangler.jsonc" }
+        // Use test config without AI binding to avoid auth requirement in CI
+        wrangler: { configPath: "./wrangler.test.jsonc" }
       }
     }
   }

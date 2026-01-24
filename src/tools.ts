@@ -5,7 +5,7 @@
 import { tool, type ToolSet } from "ai";
 import { z } from "zod/v3";
 
-import type { Chat } from "./server";
+import type { PaperScout } from "./server";
 import { getCurrentAgent } from "agents";
 import { scheduleSchema } from "agents/schedule";
 
@@ -38,7 +38,7 @@ const scheduleTask = tool({
   inputSchema: scheduleSchema,
   execute: async ({ when, description }) => {
     // we can now read the agent context from the ALS store
-    const { agent } = getCurrentAgent<Chat>();
+    const { agent } = getCurrentAgent<PaperScout>();
 
     function throwError(msg: string): string {
       throw new Error(msg);
@@ -72,7 +72,7 @@ const getScheduledTasks = tool({
   description: "List all tasks that have been scheduled",
   inputSchema: z.object({}),
   execute: async () => {
-    const { agent } = getCurrentAgent<Chat>();
+    const { agent } = getCurrentAgent<PaperScout>();
 
     try {
       const tasks = agent!.getSchedules();
@@ -97,7 +97,7 @@ const cancelScheduledTask = tool({
     taskId: z.string().describe("The ID of the task to cancel")
   }),
   execute: async ({ taskId }) => {
-    const { agent } = getCurrentAgent<Chat>();
+    const { agent } = getCurrentAgent<PaperScout>();
     try {
       await agent!.cancelSchedule(taskId);
       return `Task ${taskId} has been successfully canceled.`;

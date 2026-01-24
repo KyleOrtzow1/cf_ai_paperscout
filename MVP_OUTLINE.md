@@ -4,31 +4,31 @@
 
 1. **Find papers**
 
-* “Find 5 recent papers about *diffusion transformers*”
-* Returns a compact ranked list with title, authors, date, arXiv ID, and link.
+- “Find 5 recent papers about _diffusion transformers_”
+- Returns a compact ranked list with title, authors, date, arXiv ID, and link.
 
 2. **Summarize a paper**
 
-* “Summarize paper #2”
-* Returns a structured output (TL;DR, key contributions, limitations, what to read next, “based on abstract” disclaimer).
+- “Summarize paper #2”
+- Returns a structured output (TL;DR, key contributions, limitations, what to read next, “based on abstract” disclaimer).
 
 3. **Save to library**
 
-* “Save #2 with tags: diffusion, transformers”
-* Persists the paper metadata + your tags + (optionally) the summary.
+- “Save #2 with tags: diffusion, transformers”
+- Persists the paper metadata + your tags + (optionally) the summary.
 
 4. **Recall from memory/state**
 
-* “What have I saved about diffusion in the last month?”
-* “Show my saved list”
-* Results come from the Agent’s built-in SQL storage and synced state. Agents have built-in persisted state and a built-in SQLite API (`this.sql`). ([Cloudflare Docs][1])
+- “What have I saved about diffusion in the last month?”
+- “Show my saved list”
+- Results come from the Agent’s built-in SQL storage and synced state. Agents have built-in persisted state and a built-in SQLite API (`this.sql`). ([Cloudflare Docs][1])
 
 ### MVP non-goals (avoid scope creep)
 
-* PDF ingestion, embeddings/vector search
-* Multi-user auth
-* “Read the full paper” deep extraction
-* Voice input (we’ll list as a Phase 2 enhancement)
+- PDF ingestion, embeddings/vector search
+- Multi-user auth
+- “Read the full paper” deep extraction
+- Voice input (we’ll list as a Phase 2 enhancement)
 
 ---
 
@@ -36,26 +36,25 @@
 
 ### Cloudflare platform pieces
 
-* **Cloudflare Workers**: entrypoint HTTP handler + asset hosting + routing to your agent instance. ([Cloudflare Docs][2])
-* **Cloudflare Agents SDK** (runs on **Durable Objects**): the stateful “PaperScout” agent per user/session. Agents require Durable Objects bindings + migrations. ([Cloudflare Docs][3])
-* **Workers AI**: LLM inference with **Llama 3.3** via binding on `env.AI`. ([Cloudflare Docs][4])
-* **(Optional later) Workflows**: for scheduled digests / long-running pipelines (Phase 2).
+- **Cloudflare Workers**: entrypoint HTTP handler + asset hosting + routing to your agent instance. ([Cloudflare Docs][2])
+- **Cloudflare Agents SDK** (runs on **Durable Objects**): the stateful “PaperScout” agent per user/session. Agents require Durable Objects bindings + migrations. ([Cloudflare Docs][3])
+- **Workers AI**: LLM inference with **Llama 3.3** via binding on `env.AI`. ([Cloudflare Docs][4])
+- **(Optional later) Workflows**: for scheduled digests / long-running pipelines (Phase 2).
 
 ### LLM + agent dev libraries
 
-* **ai-sdk** (`ai`, `@ai-sdk/react`): streaming + tool calling patterns (matches the Agents starter design).
-* **workers-ai-provider**: plugs Workers AI into ai-sdk. ([GitHub][5])
-* **agents**: core Agent + React hooks (`useAgent`, `useAgentChat`) and routing helpers. ([Cloudflare Docs][2])
-* **zod**: tool input validation (keep tool calls safe + predictable).
-* **fast-xml-parser** (or similar): parse arXiv Atom XML into JSON (arXiv results are Atom).
+- **ai-sdk** (`ai`, `@ai-sdk/react`): streaming + tool calling patterns (matches the Agents starter design).
+- **workers-ai-provider**: plugs Workers AI into ai-sdk. ([GitHub][5])
+- **agents**: core Agent + React hooks (`useAgent`, `useAgentChat`) and routing helpers. ([Cloudflare Docs][2])
+- **zod**: tool input validation (keep tool calls safe + predictable).
+- **fast-xml-parser** (or similar): parse arXiv Atom XML into JSON (arXiv results are Atom).
 
 ### Frontend
 
-* **React** chat UI from the `cloudflare/agents-starter` template (already wired for agent chat hooks). ([GitHub][6])
-* Minimal UI additions:
-
-  * “Library” side panel fed by agent state sync
-  * “Save” actions surfaced via chat/tool confirmations
+- **React** chat UI from the `cloudflare/agents-starter` template (already wired for agent chat hooks). ([GitHub][6])
+- Minimal UI additions:
+  - “Library” side panel fed by agent state sync
+  - “Save” actions surfaced via chat/tool confirmations
 
 ---
 
@@ -63,11 +62,10 @@
 
 ### Repo name and required files (per application requirements)
 
-* Repo name: **`cf_ai_paperscout`**
-* Must include:
-
-  * `README.md` with clear run + deploy instructions
-  * `PROMPTS.md` with AI prompts you used while coding (keep it honest + chronological)
+- Repo name: **`cf_ai_paperscout`**
+- Must include:
+  - `README.md` with clear run + deploy instructions
+  - `PROMPTS.md` with AI prompts you used while coding (keep it honest + chronological)
 
 ### Base template to start from
 
@@ -102,8 +100,8 @@ You’ll use `routeAgentRequest`, which maps requests to `/agents/:agent/:name`,
 
 ### State + persistence
 
-* **Persistent storage:** Agent’s embedded SQLite via `this.sql` (per-agent instance, effectively zero-latency in the agent). ([Cloudflare Docs][1])
-* **Synced UI state:** Agent `this.setState` to publish “library preview” and preferences to the UI in real time. ([Cloudflare Docs][1])
+- **Persistent storage:** Agent’s embedded SQLite via `this.sql` (per-agent instance, effectively zero-latency in the agent). ([Cloudflare Docs][1])
+- **Synced UI state:** Agent `this.setState` to publish “library preview” and preferences to the UI in real time. ([Cloudflare Docs][1])
 
 ---
 
@@ -113,8 +111,8 @@ You’ll use `routeAgentRequest`, which maps requests to `/agents/:agent/:name`,
 
 Your `wrangler.jsonc` must include:
 
-* `durable_objects.bindings`
-* `migrations` with `new_sqlite_classes` (mandatory for Agent state storage) ([Cloudflare Docs][3])
+- `durable_objects.bindings`
+- `migrations` with `new_sqlite_classes` (mandatory for Agent state storage) ([Cloudflare Docs][3])
 
 Example shape (adapt names):
 
@@ -126,19 +124,15 @@ Example shape (adapt names):
   "compatibility_date": "2025-02-23",
   "compatibility_flags": ["nodejs_compat"],
   "durable_objects": {
-    "bindings": [
-      { "name": "PaperScout", "class_name": "PaperScout" }
-    ]
+    "bindings": [{ "name": "PaperScout", "class_name": "PaperScout" }]
   },
-  "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["PaperScout"] }
-  ],
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PaperScout"] }],
   "observability": { "enabled": true },
   "ai": { "binding": "AI" }
 }
 ```
 
-* The **AI binding** block is the standard way to bind Workers AI so you can call `env.AI`. ([Cloudflare Docs][4])
+- The **AI binding** block is the standard way to bind Workers AI so you can call `env.AI`. ([Cloudflare Docs][4])
 
 ---
 
@@ -148,7 +142,7 @@ Example shape (adapt names):
 
 Use **Llama 3.3 70B Instruct** on Workers AI:
 
-* **Model ID:** `@cf/meta/llama-3.3-70b-instruct-fp8-fast` ([Cloudflare Docs][8])
+- **Model ID:** `@cf/meta/llama-3.3-70b-instruct-fp8-fast` ([Cloudflare Docs][8])
 
 ### Provider approach (keep it simple)
 
@@ -158,17 +152,15 @@ Use **ai-sdk** + **workers-ai-provider** (this matches the starter’s documente
 
 You’ll have:
 
-* A **system prompt** that defines:
+- A **system prompt** that defines:
+  - You are PaperScout
+  - Always cite arXiv IDs/links when recommending papers
+  - Summaries must say **“based on abstract + metadata”**
+  - Ask a single follow-up question only when needed (but prefer acting with defaults)
 
-  * You are PaperScout
-  * Always cite arXiv IDs/links when recommending papers
-  * Summaries must say **“based on abstract + metadata”**
-  * Ask a single follow-up question only when needed (but prefer acting with defaults)
-
-* A **tool policy**:
-
-  * Use tools for: arXiv search, fetch by id, save, list, delete
-  * Never hallucinate paper details; if not in metadata/abstract, say so
+- A **tool policy**:
+  - Use tools for: arXiv search, fetch by id, save, list, delete
+  - Never hallucinate paper details; if not in metadata/abstract, say so
 
 ---
 
@@ -176,11 +168,10 @@ You’ll have:
 
 ### 7.1 Agent instance identity
 
-* Frontend generates a stable `userId` (UUID) in `localStorage`.
-* Connect with:
-
-  * `agent: "paper-scout"` (kebab-case of `PaperScout`)
-  * `name: userId`
+- Frontend generates a stable `userId` (UUID) in `localStorage`.
+- Connect with:
+  - `agent: "paper-scout"` (kebab-case of `PaperScout`)
+  - `name: userId`
     This matches the Agents client convention (`name` defaults to `"default"` if omitted, but we want stable per-user memory). ([Cloudflare Docs][9])
 
 ### 7.2 Agent state shape (synced to UI)
@@ -190,9 +181,9 @@ Keep the synced state small and UI-friendly:
 ```ts
 type PaperScoutState = {
   preferences: {
-    defaultMaxResults: number;   // default 5
-    recencyDays: number;         // default 30
-    categories: string[];        // default ["cs.AI", "cs.LG"]
+    defaultMaxResults: number; // default 5
+    recencyDays: number; // default 30
+    categories: string[]; // default ["cs.AI", "cs.LG"]
   };
   libraryPreview: Array<{
     arxivId: string;
@@ -211,21 +202,21 @@ Use `this.sql` to create tables (run once on startup or lazily on first use). Ag
 
 1. `saved_papers`
 
-* `arxiv_id TEXT PRIMARY KEY`
-* `title TEXT`
-* `authors_json TEXT`
-* `published TEXT`
-* `updated TEXT`
-* `abstract TEXT`
-* `url TEXT`
-* `tags_json TEXT`
-* `saved_at INTEGER`
+- `arxiv_id TEXT PRIMARY KEY`
+- `title TEXT`
+- `authors_json TEXT`
+- `published TEXT`
+- `updated TEXT`
+- `abstract TEXT`
+- `url TEXT`
+- `tags_json TEXT`
+- `saved_at INTEGER`
 
 2. `paper_summaries`
 
-* `arxiv_id TEXT PRIMARY KEY`
-* `summary_md TEXT`
-* `created_at INTEGER`
+- `arxiv_id TEXT PRIMARY KEY`
+- `summary_md TEXT`
+- `created_at INTEGER`
 
 (Keep it normalized enough that you can update summaries without rewriting paper metadata.)
 
@@ -241,80 +232,79 @@ You’ll define tools using ai-sdk’s `tool(...)` and zod schemas (same pattern
 
 **Input**
 
-* `query: string`
-* `maxResults?: number` (default from preferences)
-* `recencyDays?: number` (default from preferences)
-* `categories?: string[]` (default from preferences)
+- `query: string`
+- `maxResults?: number` (default from preferences)
+- `recencyDays?: number` (default from preferences)
+- `categories?: string[]` (default from preferences)
 
 **Output**
 
-* list of `{ arxivId, title, authors[], published, abstract, url }`
+- list of `{ arxivId, title, authors[], published, abstract, url }`
 
 **Implementation notes**
 
-* Call arXiv Atom API (no key required).
-* Parse XML → objects.
-* Filter by recency client-side (arXiv returns dates).
+- Call arXiv Atom API (no key required).
+- Parse XML → objects.
+- Filter by recency client-side (arXiv returns dates).
 
 #### Tool: `summarizePaper`
 
 **Input**
 
-* `arxivId: string`
+- `arxivId: string`
 
 **Output**
 
-* `summaryMd: string`
+- `summaryMd: string`
 
 **LLM prompt shape**
 
-* Provide title/authors/date + abstract
-* Required output sections:
-
-  * TL;DR (1–2 sentences)
-  * Key contributions (bullets)
-  * Limitations / open questions (bullets)
-  * Who should read this
-  * Related keywords
-  * Disclaimer: “based on abstract/metadata”
+- Provide title/authors/date + abstract
+- Required output sections:
+  - TL;DR (1–2 sentences)
+  - Key contributions (bullets)
+  - Limitations / open questions (bullets)
+  - Who should read this
+  - Related keywords
+  - Disclaimer: “based on abstract/metadata”
 
 #### Tool: `savePaper`
 
 **Input**
 
-* `arxivId: string`
-* `tags?: string[]`
+- `arxivId: string`
+- `tags?: string[]`
 
 **Output**
 
-* `{ ok: true }`
+- `{ ok: true }`
 
 **Behavior**
 
-* Upsert into `saved_papers`
-* Update `libraryPreview` state to reflect latest saves (top 20)
+- Upsert into `saved_papers`
+- Update `libraryPreview` state to reflect latest saves (top 20)
 
 #### Tool: `listSavedPapers`
 
 **Input**
 
-* `filterText?: string`
-* `tag?: string`
-* `limit?: number` (default 20)
+- `filterText?: string`
+- `tag?: string`
+- `limit?: number` (default 20)
 
 **Output**
 
-* list of saved items (light metadata)
+- list of saved items (light metadata)
 
 #### Tool: `removeSavedPaper` (confirmation recommended)
 
 **Input**
 
-* `arxivId: string`
+- `arxivId: string`
 
 **Output**
 
-* `{ ok: true }`
+- `{ ok: true }`
 
 **Why confirmation?**
 The starter pattern supports “tools requiring user confirmation” (omit `execute` and implement in the `executions` map so the UI can ask the user). ([GitHub][10])
@@ -338,8 +328,8 @@ In `app.tsx` you’ll pass a stable `name` to `useAgent` so your library persist
 
 Render `state.libraryPreview` on the left:
 
-* Click item → open arXiv link in new tab
-* Optional: “Summarize” and “Remove” buttons that send chat commands (or call tools directly)
+- Click item → open arXiv link in new tab
+- Optional: “Summarize” and “Remove” buttons that send chat commands (or call tools directly)
 
 This demonstrates “memory/state” in a way reviewers can see instantly.
 
@@ -349,14 +339,14 @@ This demonstrates “memory/state” in a way reviewers can see instantly.
 
 ### Required
 
-* **Node.js** (LTS is safest)
-* **Git**
-* A **Cloudflare account** and Wrangler login (for running Workers AI + deploying)
+- **Node.js** (LTS is safest)
+- **Git**
+- A **Cloudflare account** and Wrangler login (for running Workers AI + deploying)
 
 ### Recommended
 
-* VS Code
-* A terminal you’re comfortable with (PowerShell is fine)
+- VS Code
+- A terminal you’re comfortable with (PowerShell is fine)
 
 ### Project bootstrap commands (Windows-friendly)
 
@@ -382,22 +372,21 @@ These steps match Cloudflare’s documented “ship your first Agent” flow. ([
 
 Your `README.md` should include, at minimum:
 
-* What PaperScout does (2–3 sentences)
-* MVP feature list
-* Local run steps (`npm install`, `npm start`)
-* How to deploy (`npm run deploy`) ([Cloudflare Docs][7])
-* How to use in the UI (example prompts)
-* What you used for:
-
-  * LLM: Llama 3.3 on Workers AI (model id)
-  * State: Agent state + `this.sql`
-  * Coordination: Durable Object Agent + tool calling
+- What PaperScout does (2–3 sentences)
+- MVP feature list
+- Local run steps (`npm install`, `npm start`)
+- How to deploy (`npm run deploy`) ([Cloudflare Docs][7])
+- How to use in the UI (example prompts)
+- What you used for:
+  - LLM: Llama 3.3 on Workers AI (model id)
+  - State: Agent state + `this.sql`
+  - Coordination: Durable Object Agent + tool calling
 
 And `PROMPTS.md` should include:
 
-* The prompts you used to generate/refactor code
-* The prompts you used to shape system prompts / tool behavior
-* Notes on what you changed manually afterward
+- The prompts you used to generate/refactor code
+- The prompts you used to shape system prompts / tool behavior
+- Notes on what you changed manually afterward
 
 ---
 
@@ -409,10 +398,9 @@ And `PROMPTS.md` should include:
 2. Generate project with `create-cloudflare` using `cloudflare/agents-starter` ([Cloudflare Docs][7])
 3. Commit the vanilla template as “baseline”
 4. Update `wrangler.jsonc`:
-
-   * add `PaperScout` durable object binding
-   * add migrations with `new_sqlite_classes`
-   * add Workers AI binding `"ai": { "binding": "AI" }` ([Cloudflare Docs][3])
+   - add `PaperScout` durable object binding
+   - add migrations with `new_sqlite_classes`
+   - add Workers AI binding `"ai": { "binding": "AI" }` ([Cloudflare Docs][3])
 
 ## B) Backend: Agent skeleton + persistence
 
@@ -448,10 +436,10 @@ And `PROMPTS.md` should include:
 
 20. Write `README.md` with:
 
-* local run
-* deploy
-* sample prompts
-* architecture notes
+- local run
+- deploy
+- sample prompts
+- architecture notes
 
 21. Write `PROMPTS.md` (copy/paste prompts you used during coding)
 22. Add a short demo GIF (optional, but helps a lot)

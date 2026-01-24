@@ -19,8 +19,8 @@
 
 ## C) LLM integration (Workers AI)
 
-- [ ] 9. Switch model calls to Workers AI (ai-sdk + workers-ai-provider)
-- [ ] 10. Add the PaperScout system prompt + formatting rules (summary template, "abstract-only" disclaimer)
+- [x] 9. Switch model calls to Workers AI (ai-sdk + workers-ai-provider)
+- [x] 10. Add the PaperScout system prompt + formatting rules (summary template, "abstract-only" disclaimer)
 
 ## D) arXiv ingestion
 

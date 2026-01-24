@@ -7,9 +7,9 @@ export const APPROVAL = {
 // PaperScout agent state - synced to UI via Agent.setState
 export type PaperScoutState = {
   preferences: {
-    defaultMaxResults: number;   // default 5
-    recencyDays: number;         // default 30
-    categories: string[];        // default ["cs.AI", "cs.LG"]
+    defaultMaxResults: number; // default 5
+    recencyDays: number; // default 30
+    categories: string[]; // default ["cs.AI", "cs.LG"]
   };
   libraryPreview: Array<{
     arxivId: string;

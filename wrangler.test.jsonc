@@ -1,0 +1,32 @@
+/**
+ * Wrangler configuration for testing (without AI binding to avoid auth requirement)
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "square-surf-e576",
+  "main": "src/server.ts",
+  "compatibility_date": "2025-12-17",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "public"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "PaperScout",
+        "class_name": "PaperScout"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["PaperScout"]
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

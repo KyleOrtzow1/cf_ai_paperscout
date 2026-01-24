@@ -13,18 +13,10 @@ import {
   createUIMessageStreamResponse,
   type ToolSet
 } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { createWorkersAI } from "workers-ai-provider";
 import { processToolCalls, cleanupMessages } from "./utils";
 import { tools, executions } from "./tools";
 import type { PaperScoutState } from "./shared";
-// import { env } from "cloudflare:workers";
-
-const model = openai("gpt-4o-2024-11-20");
-// Cloudflare AI Gateway
-// const openai = createOpenAI({
-//   apiKey: env.OPENAI_API_KEY,
-//   baseURL: env.GATEWAY_BASE_URL,
-// });
 
 /**
  * PaperScout Agent - AI-powered research paper discovery and management
@@ -108,12 +100,39 @@ export class PaperScout extends AIChatAgent<Env, PaperScoutState> {
           executions
         });
 
+        // Create Workers AI model per-request using the AI binding
+        const workersai = createWorkersAI({ binding: this.env.AI });
+        // Using llama-3.3-70b-instruct-fp8-fast for quality + speed balance
+        const model = workersai(
+          "@cf/meta/llama-3.3-70b-instruct-fp8-fast" as Parameters<
+            typeof workersai
+          >[0]
+        );
+
         const result = streamText({
-          system: `You are a helpful assistant that can do various tasks... 
+          system: `# PaperScout — AI Research Assistant
+
+You are PaperScout, an AI assistant for discovering and organizing academic papers from arXiv.
+
+## Current Capabilities (in this build)
+- General conversation about research topics, ML/AI concepts, and paper discovery strategies
+- Utility tools (weather, time, scheduling) — use only if the user asks or if clearly helpful; otherwise stay focused on PaperScout's mission
+
+## PaperScout Features (planned, not yet implemented)
+- Searching arXiv
+- Summarizing papers from metadata/abstract
+- Saving papers to a personal library and listing/removing saved items
+
+If a user asks for planned features, clearly say they aren't available yet in this version. Offer helpful alternatives:
+- Help refine a search query the user can run later (keywords, categories, date window)
+- If the user provides an arXiv ID/link, you can discuss it and keep a short list *within this chat* (do not claim it is saved/persisted)
+
+## Rules
+1. **Never hallucinate**: Do not invent paper titles, authors, abstracts, results, or arXiv IDs. If you don't have the info, say so.
+2. **Citations**: If a paper is discussed and an arXiv ID is known/provided, include the arXiv ID and a link. If not provided, ask for the ID or link.
+3. **Prefer action, but be honest**: Use sensible defaults and take the next helpful step. Never claim you searched, saved, or summarized a paper unless the relevant feature is actually available and used.
 
 ${getSchedulePrompt({ date: new Date() })}
-
-If the user asks to schedule a task, use the schedule tool to schedule the task.
 `,
 
           messages: await convertToModelMessages(processedMessages),
@@ -160,17 +179,12 @@ export default {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext) {
     const url = new URL(request.url);
 
+    // Workers AI health check endpoint (replaces OpenAI key check)
     if (url.pathname === "/check-open-ai-key") {
-      const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
-      return Response.json({
-        success: hasOpenAIKey
-      });
+      // Always return success since Workers AI uses binding, not API key
+      return Response.json({ success: true });
     }
-    if (!process.env.OPENAI_API_KEY) {
-      console.error(
-        "OPENAI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"
-      );
-    }
+
     return (
       // Route the request to our agent or return 404 if not found
       (await routeAgentRequest(request, env)) ||
