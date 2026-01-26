@@ -84,6 +84,13 @@ export class PaperScout extends AIChatAgent<Env, PaperScoutState> {
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
   ) {
+    // Validate Workers AI binding is configured
+    if (!this.env.AI) {
+      throw new Error(
+        "Workers AI binding not configured. Please check wrangler.jsonc configuration and ensure the AI binding is properly set up."
+      );
+    }
+
     // MCP tools not used in this project - using local tools only
     // const mcpConnection = await this.mcp.connect(
     //   "https://path-to-mcp-server/sse"
@@ -202,14 +209,6 @@ ${getSchedulePrompt({ date: new Date() })}
  */
 export default {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext) {
-    const url = new URL(request.url);
-
-    // Workers AI health check endpoint (replaces OpenAI key check)
-    if (url.pathname === "/check-open-ai-key") {
-      // Always return success since Workers AI uses binding, not API key
-      return Response.json({ success: true });
-    }
-
     return (
       // Route the request to our agent or return 404 if not found
       (await routeAgentRequest(request, env)) ||
