@@ -26,13 +26,13 @@
 
 - [x] 11. Implement arXiv fetch + Atom XML parsing (library + unit test)
 - [x] 12. Implement tool: `searchArxiv` (query → results list)
-- [ ] 13. Implement tool: `summarizePaper` (arxivId → structured markdown summary)
+- [x] 13. Implement tool: `summarizePaper` (arxivId → structured markdown summary)
 
 ## E) Library + memory/state UX
 
-- [ ] 14. Implement tool: `savePaper` (upsert into SQL, update libraryPreview via `this.setState`)
-- [ ] 15. Implement tool: `listSavedPapers` (SQL query + formatted response)
-- [ ] 16. Implement tool: `removeSavedPaper` using confirmation flow (UI tool confirmation pattern)
+- [x] 14. Implement tool: `savePaper` (upsert into SQL, update libraryPreview via `this.setState`)
+- [x] 15. Implement tool: `listSavedPapers` (SQL query + formatted response)
+- [x] 16. Implement tool: `removeSavedPaper` using confirmation flow (UI tool confirmation pattern)
 
 ## F) Frontend polish (minimal but impressive)
 

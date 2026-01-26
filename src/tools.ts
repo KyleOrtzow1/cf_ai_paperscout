@@ -12,9 +12,11 @@ import {
   type ArxivPaper,
   fetchArxivPapers,
   fetchArxivPaperById,
+  normalizeArxivId,
   ArxivNetworkError,
   ArxivHttpError
 } from "./lib/arxiv";
+import type { LibraryPreviewItem } from "./shared";
 import { generateText } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
 
@@ -73,6 +75,49 @@ export interface SummarizePaperResult {
   error?: string;
 }
 
+/**
+ * Result type for savePaper tool
+ */
+export interface SavePaperResult {
+  arxivId: string;
+  title: string;
+  tags: string[];
+  savedAt: number;
+  wasAlreadySaved: boolean;
+  error?: string;
+}
+
+/**
+ * Result type for listSavedPapers tool
+ */
+export interface ListSavedPapersResult {
+  papers: Array<{
+    arxivId: string;
+    title: string;
+    authors: string[];
+    published: string;
+    abstract: string;
+    url: string;
+    tags: string[];
+    savedAt: number;
+  }>;
+  filterText?: string;
+  tagFilter?: string;
+  totalCount: number;
+  wasTruncated: boolean;
+  error?: string;
+}
+
+/**
+ * Result type for removeSavedPaper tool
+ */
+export interface RemoveSavedPaperResult {
+  arxivId: string;
+  title?: string;
+  success: boolean;
+  error?: string;
+}
+
 // =============================================================================
 // Summary Prompt Builder
 // =============================================================================
@@ -126,6 +171,46 @@ Generate a structured summary with EXACTLY these sections in markdown format:
 *⚠️ This summary is based on the paper's abstract and metadata only, not the full text.*
 
 Respond with ONLY the markdown summary, no additional commentary.`;
+}
+
+// =============================================================================
+// Library Management Helpers
+// =============================================================================
+
+/**
+ * Helper function to update libraryPreview state with top 10 most recent papers
+ * Called after savePaper and removeSavedPaper operations to keep UI in sync
+ */
+async function updateLibraryPreview(agent: PaperScout): Promise<void> {
+  try {
+    const recent = agent.sql<{
+      arxiv_id: string;
+      title: string;
+      saved_at: number;
+      tags_json: string;
+    }>`
+      SELECT arxiv_id, title, saved_at, tags_json
+      FROM saved_papers
+      ORDER BY saved_at DESC
+      LIMIT 10
+    `;
+
+    const preview: LibraryPreviewItem[] = recent.map((row) => ({
+      arxivId: row.arxiv_id,
+      title: row.title,
+      savedAt: row.saved_at,
+      tags: JSON.parse(row.tags_json || "[]") as string[]
+    }));
+
+    // Merge with existing state to preserve preferences
+    agent.setState({
+      ...agent.state,
+      libraryPreview: preview
+    });
+  } catch (error) {
+    console.error("Error updating library preview:", error);
+    // Don't throw - preview update failure shouldn't fail the operation
+  }
 }
 
 /**
@@ -463,6 +548,333 @@ const summarizePaper = tool({
 });
 
 /**
+ * Save an arXiv paper to the user's personal library with optional tags.
+ * If the paper is already saved, merges new tags with existing ones.
+ * Updates libraryPreview state for UI synchronization.
+ */
+const savePaper = tool({
+  description:
+    "Save an arXiv paper to the user's personal library with optional tags. " +
+    "Use this when the user wants to bookmark, save, or add a paper to their collection. " +
+    "The paper will be fetched from arXiv if not already in the database.",
+  inputSchema: z.object({
+    arxivId: z
+      .string()
+      .describe(
+        "arXiv paper ID to save (e.g., '2301.01234' or '2301.01234v2')"
+      ),
+    tags: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "Optional tags to categorize the paper (e.g., ['diffusion', 'image-generation'])"
+      )
+  }),
+  execute: async ({ arxivId, tags = [] }): Promise<SavePaperResult> => {
+    const { agent } = getCurrentAgent<PaperScout>();
+
+    // Normalize the arXiv ID to canonical form (without version)
+    const normalized = normalizeArxivId(arxivId);
+    const canonicalId = normalized.canonical;
+
+    // Check if already saved
+    let existingPaper: Array<{
+      arxiv_id: string;
+      title: string;
+      saved_at: number;
+      tags_json: string;
+    }>;
+    try {
+      existingPaper = agent!.sql<{
+        arxiv_id: string;
+        title: string;
+        saved_at: number;
+        tags_json: string;
+      }>`
+        SELECT arxiv_id, title, saved_at, tags_json
+        FROM saved_papers
+        WHERE arxiv_id = ${canonicalId}
+      `;
+    } catch (error) {
+      console.error("Error checking existing paper:", error);
+      return {
+        arxivId: canonicalId,
+        title: "",
+        tags: [],
+        savedAt: 0,
+        wasAlreadySaved: false,
+        error: "Database error while checking for existing paper"
+      };
+    }
+
+    const wasAlreadySaved = existingPaper.length > 0;
+
+    // If already saved, update tags (merge with existing)
+    if (wasAlreadySaved) {
+      const existing = existingPaper[0];
+      const existingTags = JSON.parse(existing.tags_json || "[]") as string[];
+      const mergedTags = Array.from(new Set([...existingTags, ...tags]));
+
+      try {
+        agent!.sql`
+          UPDATE saved_papers
+          SET tags_json = ${JSON.stringify(mergedTags)}
+          WHERE arxiv_id = ${canonicalId}
+        `;
+      } catch (error) {
+        console.error("Error updating tags:", error);
+        return {
+          arxivId: canonicalId,
+          title: existing.title,
+          tags: existingTags,
+          savedAt: existing.saved_at,
+          wasAlreadySaved: true,
+          error: "Failed to update tags"
+        };
+      }
+
+      // Update libraryPreview state
+      await updateLibraryPreview(agent!);
+
+      return {
+        arxivId: canonicalId,
+        title: existing.title,
+        tags: mergedTags,
+        savedAt: existing.saved_at,
+        wasAlreadySaved: true
+      };
+    }
+
+    // Fetch paper from arXiv
+    let paper: ArxivPaper | null;
+    try {
+      paper = await fetchArxivPaperById(canonicalId);
+    } catch (error) {
+      if (error instanceof ArxivNetworkError) {
+        return {
+          arxivId: canonicalId,
+          title: "",
+          tags: [],
+          savedAt: 0,
+          wasAlreadySaved: false,
+          error: "Failed to connect to arXiv. Please try again later."
+        };
+      }
+      if (error instanceof ArxivHttpError) {
+        return {
+          arxivId: canonicalId,
+          title: "",
+          tags: [],
+          savedAt: 0,
+          wasAlreadySaved: false,
+          error: `arXiv returned an error (HTTP ${error.status}). Please try again.`
+        };
+      }
+      throw error;
+    }
+
+    if (!paper) {
+      return {
+        arxivId: canonicalId,
+        title: "",
+        tags: [],
+        savedAt: 0,
+        wasAlreadySaved: false,
+        error: `Paper with arXiv ID '${canonicalId}' not found. Please check the ID and try again.`
+      };
+    }
+
+    // Insert into database
+    const savedAt = Date.now();
+    try {
+      agent!.sql`
+        INSERT INTO saved_papers (
+          arxiv_id, title, authors_json, published, updated,
+          abstract, url, tags_json, saved_at
+        ) VALUES (
+          ${canonicalId},
+          ${paper.title},
+          ${JSON.stringify(paper.authors)},
+          ${paper.published},
+          ${paper.updated || paper.published},
+          ${paper.abstract},
+          ${paper.url},
+          ${JSON.stringify(tags)},
+          ${savedAt}
+        )
+      `;
+    } catch (error) {
+      console.error("Error inserting paper:", error);
+      return {
+        arxivId: canonicalId,
+        title: paper.title,
+        tags: [],
+        savedAt: 0,
+        wasAlreadySaved: false,
+        error: "Failed to save paper to database"
+      };
+    }
+
+    // Update libraryPreview state (top 10 most recent)
+    await updateLibraryPreview(agent!);
+
+    return {
+      arxivId: canonicalId,
+      title: paper.title,
+      tags,
+      savedAt,
+      wasAlreadySaved: false
+    };
+  }
+});
+
+/**
+ * List papers saved in the user's personal library.
+ * Supports filtering by text search (titles and abstracts) and tag filtering.
+ * Results are always sorted by most recently saved first.
+ */
+const listSavedPapers = tool({
+  description:
+    "List papers saved in the user's personal library. " +
+    "Supports filtering by text search (searches titles and abstracts) and tag filtering. " +
+    "Use this when the user wants to: see/show/view/list their saved papers, review their library, " +
+    "find a specific saved paper, check what papers they have saved, or view their collection. " +
+    "This tool should be used whenever the user asks about their saved/stored papers.",
+  inputSchema: z.object({
+    filterText: z
+      .string()
+      .optional()
+      .describe(
+        "Optional text to search for in paper titles and abstracts (case-insensitive)"
+      ),
+    tag: z
+      .string()
+      .optional()
+      .describe(
+        "Optional tag to filter by (only papers with this tag will be returned)"
+      ),
+    limit: z.coerce
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Maximum number of results to return (default: 20, max: 100)")
+  }),
+  execute: async ({
+    filterText,
+    tag,
+    limit = 20
+  }): Promise<ListSavedPapersResult> => {
+    const { agent } = getCurrentAgent<PaperScout>();
+
+    // Enforce max limit
+    const effectiveLimit = Math.min(limit, 100);
+
+    // Fetch all papers from database (filtering done in JavaScript)
+    let allPapers: Array<{
+      arxiv_id: string;
+      title: string;
+      authors_json: string;
+      published: string;
+      abstract: string;
+      url: string;
+      tags_json: string;
+      saved_at: number;
+    }>;
+    try {
+      allPapers = agent!.sql<{
+        arxiv_id: string;
+        title: string;
+        authors_json: string;
+        published: string;
+        abstract: string;
+        url: string;
+        tags_json: string;
+        saved_at: number;
+      }>`
+        SELECT arxiv_id, title, authors_json, published, abstract, url, tags_json, saved_at
+        FROM saved_papers
+        ORDER BY saved_at DESC
+      `;
+    } catch (error) {
+      console.error("Error querying saved papers:", error);
+      return {
+        papers: [],
+        totalCount: 0,
+        wasTruncated: false,
+        error: "Failed to retrieve saved papers from database"
+      };
+    }
+
+    // Apply filters in JavaScript (SQL template literals are limited)
+    let filtered = allPapers;
+
+    // Filter by tag (case-insensitive)
+    if (tag) {
+      filtered = filtered.filter((row) => {
+        const tags = JSON.parse(row.tags_json || "[]") as string[];
+        return tags.some((t) => t.toLowerCase() === tag.toLowerCase());
+      });
+    }
+
+    // Filter by text (search title and abstract, case-insensitive)
+    if (filterText) {
+      const lowerFilter = filterText.toLowerCase();
+      filtered = filtered.filter((row) => {
+        return (
+          row.title.toLowerCase().includes(lowerFilter) ||
+          row.abstract.toLowerCase().includes(lowerFilter)
+        );
+      });
+    }
+
+    const totalCount = filtered.length;
+    const wasTruncated = totalCount > effectiveLimit;
+
+    // Apply limit
+    const limited = filtered.slice(0, effectiveLimit);
+
+    // Transform to result format
+    const papers = limited.map((row) => ({
+      arxivId: row.arxiv_id,
+      title: row.title,
+      authors: JSON.parse(row.authors_json || "[]") as string[],
+      published: row.published,
+      abstract: row.abstract,
+      url: row.url,
+      tags: JSON.parse(row.tags_json || "[]") as string[],
+      savedAt: row.saved_at
+    }));
+
+    return {
+      papers,
+      filterText,
+      tagFilter: tag,
+      totalCount,
+      wasTruncated
+    };
+  }
+});
+
+/**
+ * Remove a paper from the user's personal library.
+ * This action requires user confirmation before execution.
+ * Updates libraryPreview state after successful removal.
+ */
+const removeSavedPaper = tool({
+  description:
+    "Remove a paper from the user's personal library. " +
+    "This action requires user confirmation. " +
+    "Use this when the user wants to delete or remove a saved paper from their collection.",
+  inputSchema: z.object({
+    arxivId: z
+      .string()
+      .describe("arXiv paper ID to remove (e.g., '2301.01234')")
+  })
+  // No execute function - requires human confirmation
+});
+
+/**
  * Export all available tools
  * These will be provided to the AI model to describe available capabilities
  */
@@ -473,7 +885,10 @@ export const tools = {
   getScheduledTasks,
   cancelScheduledTask,
   searchArxiv,
-  summarizePaper
+  summarizePaper,
+  savePaper,
+  listSavedPapers,
+  removeSavedPaper
 } satisfies ToolSet;
 
 /**
@@ -485,5 +900,60 @@ export const executions = {
   getWeatherInformation: async ({ city }: { city: string }) => {
     console.log(`Getting weather information for ${city}`);
     return `The weather in ${city} is sunny`;
+  },
+
+  removeSavedPaper: async ({
+    arxivId
+  }: {
+    arxivId: string;
+  }): Promise<RemoveSavedPaperResult> => {
+    const { agent } = getCurrentAgent<PaperScout>();
+
+    // Normalize the arXiv ID to canonical form
+    const normalized = normalizeArxivId(arxivId);
+    const canonicalId = normalized.canonical;
+
+    // Get the paper title before deleting (for confirmation message)
+    let title: string | undefined;
+    try {
+      const result = agent!.sql<{ title: string }>`
+        SELECT title FROM saved_papers WHERE arxiv_id = ${canonicalId}
+      `;
+      title = result.length > 0 ? result[0].title : undefined;
+    } catch (error) {
+      console.error("Error fetching paper for removal:", error);
+    }
+
+    if (!title) {
+      return {
+        arxivId: canonicalId,
+        success: false,
+        error: `Paper with arXiv ID '${canonicalId}' not found in library`
+      };
+    }
+
+    // Delete from database
+    try {
+      agent!.sql`
+        DELETE FROM saved_papers WHERE arxiv_id = ${canonicalId}
+      `;
+    } catch (error) {
+      console.error("Error deleting paper:", error);
+      return {
+        arxivId: canonicalId,
+        title,
+        success: false,
+        error: "Failed to remove paper from database"
+      };
+    }
+
+    // Update libraryPreview state
+    await updateLibraryPreview(agent!);
+
+    return {
+      arxivId: canonicalId,
+      title,
+      success: true
+    };
   }
 };
