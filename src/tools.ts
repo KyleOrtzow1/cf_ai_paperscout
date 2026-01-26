@@ -8,6 +8,125 @@ import { z } from "zod/v3";
 import type { PaperScout } from "./server";
 import { getCurrentAgent } from "agents";
 import { scheduleSchema } from "agents/schedule";
+import {
+  type ArxivPaper,
+  fetchArxivPapers,
+  fetchArxivPaperById,
+  ArxivNetworkError,
+  ArxivHttpError
+} from "./lib/arxiv";
+import { generateText } from "ai";
+import { createWorkersAI } from "workers-ai-provider";
+
+// =============================================================================
+// Types
+// =============================================================================
+
+// =============================================================================
+// Constants
+// =============================================================================
+
+/**
+ * Prompt version for cache key - bump when prompt changes significantly
+ */
+const SUMMARY_PROMPT_VERSION = "v1";
+
+/**
+ * Generate cache key for paper summaries
+ * Composite key allows cache invalidation when prompt version changes
+ */
+function summaryKey(arxivId: string): string {
+  return `${arxivId}:${SUMMARY_PROMPT_VERSION}`;
+}
+
+/**
+ * Result type for searchArxiv tool - consistent shape for LLM context
+ */
+export interface SearchArxivResult {
+  /** Papers matching the query and filters */
+  papers: ArxivPaper[];
+  /** Original search query */
+  query: string;
+  /** Recency filter applied (in days) */
+  recencyDays: number;
+  /** Number of papers fetched from arXiv before filtering */
+  totalFetched: number;
+  /** Number of papers after recency filter */
+  totalAfterFilter: number;
+  /** Error message if the search failed */
+  error?: string;
+}
+
+/**
+ * Result type for summarizePaper tool - consistent shape for LLM context
+ */
+export interface SummarizePaperResult {
+  /** arXiv ID of the summarized paper */
+  arxivId: string;
+  /** Paper title */
+  title?: string;
+  /** Generated markdown summary */
+  summaryMd: string;
+  /** Whether the summary was retrieved from cache */
+  cached: boolean;
+  /** Error message if summarization failed */
+  error?: string;
+}
+
+// =============================================================================
+// Summary Prompt Builder
+// =============================================================================
+
+/**
+ * Build a prompt for generating a structured paper summary
+ */
+function buildSummaryPrompt(paper: ArxivPaper): string {
+  const authorsStr =
+    paper.authors.slice(0, 5).join(", ") +
+    (paper.authors.length > 5
+      ? ` et al. (${paper.authors.length} authors)`
+      : "");
+  const publishedDate = new Date(paper.published).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric"
+  });
+
+  return `You are a research paper summarizer. Given the following paper metadata and abstract, generate a structured summary.
+
+## Paper Information
+**Title:** ${paper.title}
+**Authors:** ${authorsStr}
+**Published:** ${publishedDate}
+**arXiv ID:** ${paper.arxivId}
+**Categories:** ${paper.categories?.join(", ") || "Not specified"}
+
+## Abstract
+${paper.abstract}
+
+## Instructions
+Generate a structured summary with EXACTLY these sections in markdown format:
+
+### TL;DR
+(1-2 sentences capturing the core contribution)
+
+### Key Contributions
+(3-5 bullet points)
+
+### Limitations & Open Questions
+(2-4 bullet points based on what can be inferred from the abstract)
+
+### Who Should Read This
+(1-2 sentences describing the target audience)
+
+### Related Keywords
+(Comma-separated list of 5-8 relevant terms for discoverability)
+
+---
+*⚠️ This summary is based on the paper's abstract and metadata only, not the full text.*
+
+Respond with ONLY the markdown summary, no additional commentary.`;
+}
 
 /**
  * Weather information tool that requires human confirmation
@@ -108,6 +227,241 @@ const cancelScheduledTask = tool({
   }
 });
 
+// =============================================================================
+// PaperScout Tools
+// =============================================================================
+
+/**
+ * Search arXiv for papers matching a query.
+ * Returns structured results with query context for LLM narration.
+ * Filters by recency using the paper's published date.
+ */
+const searchArxiv = tool({
+  description:
+    "Search arXiv for academic papers matching a query. Returns papers with titles, authors, abstracts, and links. Use this when the user wants to find or discover research papers on a topic.",
+  inputSchema: z.object({
+    query: z
+      .string()
+      .describe(
+        "Search query for arXiv (e.g., 'transformer attention mechanism', 'reinforcement learning robotics')"
+      ),
+    maxResults: z.coerce
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe(
+        "Maximum number of results to return (default: from user preferences, typically 5)"
+      ),
+    recencyDays: z.coerce
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe(
+        "Only return papers published within this many days (default: from user preferences, typically 30)"
+      ),
+    categories: z
+      .preprocess((val) => {
+        // Handle LLMs that generate arrays as JSON strings
+        if (typeof val === "string") {
+          try {
+            const parsed = JSON.parse(val);
+            return Array.isArray(parsed) ? parsed : undefined;
+          } catch {
+            return undefined;
+          }
+        }
+        return val;
+      }, z.array(z.string()))
+      .optional()
+      .describe(
+        "arXiv categories to filter by (e.g., ['cs.AI', 'cs.LG']). Default: from user preferences"
+      )
+  }),
+  execute: async ({
+    query,
+    maxResults,
+    recencyDays,
+    categories
+  }): Promise<SearchArxivResult> => {
+    const { agent } = getCurrentAgent<PaperScout>();
+    const preferences = agent!.state.preferences;
+
+    // Merge inputs with preferences (inputs take precedence)
+    const effectiveMaxResults = maxResults ?? preferences.defaultMaxResults;
+    const effectiveRecencyDays = recencyDays ?? preferences.recencyDays;
+    const effectiveCategories = categories ?? preferences.categories;
+
+    // Fetch papers from arXiv
+    let papers: ArxivPaper[];
+    try {
+      papers = await fetchArxivPapers(query, {
+        maxResults: effectiveMaxResults,
+        categories: effectiveCategories,
+        sortBy: "submittedDate",
+        sortOrder: "descending"
+      });
+    } catch (error) {
+      // Return consistent shape with error info
+      if (error instanceof ArxivNetworkError) {
+        return {
+          papers: [],
+          query,
+          recencyDays: effectiveRecencyDays,
+          totalFetched: 0,
+          totalAfterFilter: 0,
+          error: "Failed to connect to arXiv. Please try again later."
+        };
+      }
+      if (error instanceof ArxivHttpError) {
+        return {
+          papers: [],
+          query,
+          recencyDays: effectiveRecencyDays,
+          totalFetched: 0,
+          totalAfterFilter: 0,
+          error: `arXiv returned an error (HTTP ${error.status}). Please try again.`
+        };
+      }
+      throw error; // Re-throw unexpected errors
+    }
+
+    const totalFetched = papers.length;
+
+    // Filter by recency using published date
+    const cutoffTime = Date.now() - effectiveRecencyDays * 24 * 60 * 60 * 1000;
+    const filteredPapers = papers.filter((paper) => {
+      const publishedTime = new Date(paper.published).getTime();
+      return publishedTime >= cutoffTime;
+    });
+
+    return {
+      papers: filteredPapers,
+      query,
+      recencyDays: effectiveRecencyDays,
+      totalFetched,
+      totalAfterFilter: filteredPapers.length
+    };
+  }
+});
+
+/**
+ * Summarize an arXiv paper by ID.
+ * Generates a structured markdown summary using Workers AI.
+ * Caches summaries in SQL with prompt-versioned keys.
+ */
+const summarizePaper = tool({
+  description:
+    "Generate a structured summary of an arXiv paper given its ID. Returns TL;DR, key contributions, limitations, target audience, and keywords. Use this when the user wants to understand what a paper is about.",
+  inputSchema: z.object({
+    arxivId: z
+      .string()
+      .describe(
+        "arXiv paper ID to summarize (e.g., '2301.01234' or '2301.01234v2')"
+      )
+  }),
+  execute: async ({ arxivId }): Promise<SummarizePaperResult> => {
+    const { agent } = getCurrentAgent<PaperScout>();
+    const cacheKey = summaryKey(arxivId);
+
+    // Check cache first
+    try {
+      const cached = agent!.sql<{ summary_md: string }>`
+        SELECT summary_md FROM paper_summaries WHERE arxiv_id = ${cacheKey}
+      `;
+      if (cached.length > 0) {
+        return {
+          arxivId,
+          summaryMd: cached[0].summary_md,
+          cached: true
+        };
+      }
+    } catch (error) {
+      // Cache miss or error, continue to generate
+      console.warn("Cache lookup failed:", error);
+    }
+
+    // Fetch paper from arXiv
+    let paper: ArxivPaper | null;
+    try {
+      paper = await fetchArxivPaperById(arxivId);
+    } catch (error) {
+      if (error instanceof ArxivNetworkError) {
+        return {
+          arxivId,
+          summaryMd: "",
+          cached: false,
+          error: "Failed to connect to arXiv. Please try again later."
+        };
+      }
+      if (error instanceof ArxivHttpError) {
+        return {
+          arxivId,
+          summaryMd: "",
+          cached: false,
+          error: `arXiv returned an error (HTTP ${error.status}). Please try again.`
+        };
+      }
+      throw error;
+    }
+
+    if (!paper) {
+      return {
+        arxivId,
+        summaryMd: "",
+        cached: false,
+        error: `Paper with arXiv ID '${arxivId}' not found. Please check the ID and try again.`
+      };
+    }
+
+    // Generate summary using Workers AI via ai-sdk
+    const workersai = createWorkersAI({ binding: agent!.getAIBinding() });
+    const model = workersai(
+      "@cf/meta/llama-3.3-70b-instruct-fp8-fast" as Parameters<
+        typeof workersai
+      >[0]
+    );
+
+    let summaryMd: string;
+    try {
+      const result = await generateText({
+        model,
+        prompt: buildSummaryPrompt(paper)
+      });
+      summaryMd = result.text;
+    } catch (error) {
+      console.error("AI generation failed:", error);
+      return {
+        arxivId,
+        title: paper.title,
+        summaryMd: "",
+        cached: false,
+        error: "Failed to generate summary. Please try again."
+      };
+    }
+
+    // Cache the result
+    try {
+      const now = Date.now();
+      agent!.sql`
+        INSERT OR REPLACE INTO paper_summaries (arxiv_id, summary_md, created_at) 
+        VALUES (${cacheKey}, ${summaryMd}, ${now})
+      `;
+    } catch (error) {
+      // Log but don't fail - summary was generated successfully
+      console.error("Failed to cache summary:", error);
+    }
+
+    return {
+      arxivId,
+      title: paper.title,
+      summaryMd,
+      cached: false
+    };
+  }
+});
+
 /**
  * Export all available tools
  * These will be provided to the AI model to describe available capabilities
@@ -117,7 +471,9 @@ export const tools = {
   getLocalTime,
   scheduleTask,
   getScheduledTasks,
-  cancelScheduledTask
+  cancelScheduledTask,
+  searchArxiv,
+  summarizePaper
 } satisfies ToolSet;
 
 /**

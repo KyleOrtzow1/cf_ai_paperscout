@@ -24,8 +24,8 @@
 
 ## D) arXiv ingestion
 
-- [ ] 11. Implement arXiv fetch + Atom XML parsing (library + unit test)
-- [ ] 12. Implement tool: `searchArxiv` (query → results list)
+- [x] 11. Implement arXiv fetch + Atom XML parsing (library + unit test)
+- [x] 12. Implement tool: `searchArxiv` (query → results list)
 - [ ] 13. Implement tool: `summarizePaper` (arxivId → structured markdown summary)
 
 ## E) Library + memory/state UX
