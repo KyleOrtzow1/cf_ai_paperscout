@@ -24,6 +24,30 @@ import { createWorkersAI } from "workers-ai-provider";
 // Types
 // =============================================================================
 
+/**
+ * SQL row type for saved_papers table queries
+ */
+interface SavedPaperRow {
+  arxiv_id: string;
+  title: string;
+  authors_json: string;
+  published: string;
+  abstract: string;
+  url: string;
+  tags_json: string;
+  saved_at: number;
+}
+
+/**
+ * SQL row type for library preview queries
+ */
+interface SavedPaperPreviewRow {
+  arxiv_id: string;
+  title: string;
+  saved_at: number;
+  tags_json: string;
+}
+
 // =============================================================================
 // Constants
 // =============================================================================
@@ -85,6 +109,7 @@ export interface SavePaperResult {
   savedAt: number;
   wasAlreadySaved: boolean;
   error?: string;
+  warning?: string;
 }
 
 /**
@@ -116,6 +141,131 @@ export interface RemoveSavedPaperResult {
   title?: string;
   success: boolean;
   error?: string;
+  warning?: string;
+}
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * Safely parse JSON with fallback value on error
+ * Prevents JSON parsing errors from breaking operations
+ */
+function safeJsonParse<T>(json: string, fallback: T): T {
+  try {
+    const parsed = JSON.parse(json || JSON.stringify(fallback));
+    return parsed as T;
+  } catch (error) {
+    console.error("JSON parse error, using fallback:", error);
+    return fallback;
+  }
+}
+
+/**
+ * Check if an error is database-related
+ * Helps distinguish between expected database errors and unexpected failures
+ */
+function isDatabaseError(error: unknown): boolean {
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    return (
+      msg.includes("sql") ||
+      msg.includes("database") ||
+      msg.includes("sqlite") ||
+      msg.includes("constraint")
+    );
+  }
+  return false;
+}
+
+/**
+ * Create a user-friendly error message for arXiv fetch failures
+ * Handles ArxivNetworkError and ArxivHttpError consistently
+ */
+function getArxivErrorMessage(error: unknown): string {
+  if (error instanceof ArxivNetworkError) {
+    return "Failed to connect to arXiv. Please try again later.";
+  }
+  if (error instanceof ArxivHttpError) {
+    return `arXiv returned an error (HTTP ${error.status}). Please try again.`;
+  }
+  // Re-throw unexpected errors
+  throw error;
+}
+
+/**
+ * Factory for creating SavePaperResult error objects
+ * Reduces duplication and ensures consistent error structure
+ */
+function createSavePaperError(
+  arxivId: string,
+  error: string,
+  partial?: Partial<SavePaperResult>
+): SavePaperResult {
+  return {
+    arxivId,
+    title: "",
+    tags: [],
+    savedAt: 0,
+    wasAlreadySaved: false,
+    ...partial,
+    error
+  };
+}
+
+/**
+ * Filter predicate: Check if paper has a specific tag (case-insensitive)
+ */
+function paperHasTag(row: SavedPaperRow, tag: string): boolean {
+  const tags = safeJsonParse<string[]>(row.tags_json, []);
+  return tags.some((t) => t.toLowerCase() === tag.toLowerCase());
+}
+
+/**
+ * Filter predicate: Check if paper matches text search (case-insensitive)
+ * Searches in title and abstract
+ */
+function paperMatchesText(row: SavedPaperRow, text: string): boolean {
+  const lowerText = text.toLowerCase();
+  return (
+    row.title.toLowerCase().includes(lowerText) ||
+    row.abstract.toLowerCase().includes(lowerText)
+  );
+}
+
+/**
+ * Transform SavedPaperRow to ListSavedPapersResult paper format
+ * Handles JSON parsing with safe fallbacks
+ */
+function rowToListPaper(row: SavedPaperRow) {
+  return {
+    arxivId: row.arxiv_id,
+    title: row.title,
+    authors: safeJsonParse<string[]>(row.authors_json, []),
+    published: row.published,
+    abstract: row.abstract,
+    url: row.url,
+    tags: safeJsonParse<string[]>(row.tags_json, []),
+    savedAt: row.saved_at
+  };
+}
+
+/**
+ * Factory for creating RemoveSavedPaperResult error objects
+ * Reduces duplication and ensures consistent error structure
+ */
+function createRemoveError(
+  arxivId: string,
+  error: string,
+  title?: string
+): RemoveSavedPaperResult {
+  return {
+    arxivId,
+    title,
+    success: false,
+    error
+  };
 }
 
 // =============================================================================
@@ -178,17 +328,17 @@ Respond with ONLY the markdown summary, no additional commentary.`;
 // =============================================================================
 
 /**
- * Helper function to update libraryPreview state with top 10 most recent papers
- * Called after savePaper and removeSavedPaper operations to keep UI in sync
+ * Helper function to update libraryPreview state with top 10 most recent papers.
+ * Called after savePaper and removeSavedPaper operations to keep UI in sync.
+ *
+ * Errors during preview update are logged but do not fail the calling operation,
+ * as the preview is a secondary UI convenience feature.
  */
-async function updateLibraryPreview(agent: PaperScout): Promise<void> {
+async function updateLibraryPreview(
+  agent: PaperScout
+): Promise<{ success: boolean; error?: string }> {
   try {
-    const recent = agent.sql<{
-      arxiv_id: string;
-      title: string;
-      saved_at: number;
-      tags_json: string;
-    }>`
+    const recent = agent.sql<SavedPaperPreviewRow>`
       SELECT arxiv_id, title, saved_at, tags_json
       FROM saved_papers
       ORDER BY saved_at DESC
@@ -199,7 +349,7 @@ async function updateLibraryPreview(agent: PaperScout): Promise<void> {
       arxivId: row.arxiv_id,
       title: row.title,
       savedAt: row.saved_at,
-      tags: JSON.parse(row.tags_json || "[]") as string[]
+      tags: safeJsonParse<string[]>(row.tags_json, [])
     }));
 
     // Merge with existing state to preserve preferences
@@ -207,9 +357,16 @@ async function updateLibraryPreview(agent: PaperScout): Promise<void> {
       ...agent.state,
       libraryPreview: preview
     });
+
+    return { success: true };
   } catch (error) {
     console.error("Error updating library preview:", error);
+    const errorMsg = error instanceof Error ? error.message : "Unknown error";
     // Don't throw - preview update failure shouldn't fail the operation
+    return {
+      success: false,
+      error: `Library preview update failed: ${errorMsg}`
+    };
   }
 }
 
@@ -573,38 +730,42 @@ const savePaper = tool({
   execute: async ({ arxivId, tags = [] }): Promise<SavePaperResult> => {
     const { agent } = getCurrentAgent<PaperScout>();
 
+    // Guard: Ensure agent context is available
+    if (!agent) {
+      return createSavePaperError("", "Agent context not available.");
+    }
+
     // Normalize the arXiv ID to canonical form (without version)
-    const normalized = normalizeArxivId(arxivId);
+    let normalized: ReturnType<typeof normalizeArxivId>;
+    try {
+      normalized = normalizeArxivId(arxivId);
+    } catch (error) {
+      console.error("Error normalizing arXiv ID:", error);
+      return createSavePaperError(
+        arxivId,
+        "Invalid arXiv ID format. Please use format like '2301.01234'."
+      );
+    }
     const canonicalId = normalized.canonical;
 
     // Check if already saved
-    let existingPaper: Array<{
-      arxiv_id: string;
-      title: string;
-      saved_at: number;
-      tags_json: string;
-    }>;
+    let existingPaper: SavedPaperPreviewRow[];
     try {
-      existingPaper = agent!.sql<{
-        arxiv_id: string;
-        title: string;
-        saved_at: number;
-        tags_json: string;
-      }>`
+      existingPaper = agent.sql<SavedPaperPreviewRow>`
         SELECT arxiv_id, title, saved_at, tags_json
         FROM saved_papers
         WHERE arxiv_id = ${canonicalId}
       `;
     } catch (error) {
-      console.error("Error checking existing paper:", error);
-      return {
-        arxivId: canonicalId,
-        title: "",
-        tags: [],
-        savedAt: 0,
-        wasAlreadySaved: false,
-        error: "Database error while checking for existing paper"
-      };
+      console.error("Database error checking existing paper:", error);
+      // Only catch database errors - re-throw unexpected errors
+      if (!isDatabaseError(error)) {
+        throw error;
+      }
+      return createSavePaperError(
+        canonicalId,
+        "Database error while checking for existing paper."
+      );
     }
 
     const wasAlreadySaved = existingPaper.length > 0;
@@ -612,36 +773,46 @@ const savePaper = tool({
     // If already saved, update tags (merge with existing)
     if (wasAlreadySaved) {
       const existing = existingPaper[0];
-      const existingTags = JSON.parse(existing.tags_json || "[]") as string[];
+      const existingTags = safeJsonParse<string[]>(existing.tags_json, []);
       const mergedTags = Array.from(new Set([...existingTags, ...tags]));
 
       try {
-        agent!.sql`
+        agent.sql`
           UPDATE saved_papers
           SET tags_json = ${JSON.stringify(mergedTags)}
           WHERE arxiv_id = ${canonicalId}
         `;
       } catch (error) {
-        console.error("Error updating tags:", error);
+        console.error("Database error updating tags:", error);
+        // Only catch database errors - re-throw unexpected errors
+        if (!isDatabaseError(error)) {
+          throw error;
+        }
         return {
           arxivId: canonicalId,
           title: existing.title,
           tags: existingTags,
           savedAt: existing.saved_at,
           wasAlreadySaved: true,
-          error: "Failed to update tags"
+          error: "Failed to update tags in database."
         };
       }
 
       // Update libraryPreview state
-      await updateLibraryPreview(agent!);
+      const previewResult = await updateLibraryPreview(agent);
 
       return {
         arxivId: canonicalId,
         title: existing.title,
         tags: mergedTags,
         savedAt: existing.saved_at,
-        wasAlreadySaved: true
+        wasAlreadySaved: true,
+        ...(previewResult.success
+          ? {}
+          : {
+              warning:
+                "Paper saved but UI preview may be outdated. Please refresh."
+            })
       };
     }
 
@@ -650,44 +821,20 @@ const savePaper = tool({
     try {
       paper = await fetchArxivPaperById(canonicalId);
     } catch (error) {
-      if (error instanceof ArxivNetworkError) {
-        return {
-          arxivId: canonicalId,
-          title: "",
-          tags: [],
-          savedAt: 0,
-          wasAlreadySaved: false,
-          error: "Failed to connect to arXiv. Please try again later."
-        };
-      }
-      if (error instanceof ArxivHttpError) {
-        return {
-          arxivId: canonicalId,
-          title: "",
-          tags: [],
-          savedAt: 0,
-          wasAlreadySaved: false,
-          error: `arXiv returned an error (HTTP ${error.status}). Please try again.`
-        };
-      }
-      throw error;
+      return createSavePaperError(canonicalId, getArxivErrorMessage(error));
     }
 
     if (!paper) {
-      return {
-        arxivId: canonicalId,
-        title: "",
-        tags: [],
-        savedAt: 0,
-        wasAlreadySaved: false,
-        error: `Paper with arXiv ID '${canonicalId}' not found. Please check the ID and try again.`
-      };
+      return createSavePaperError(
+        canonicalId,
+        `Paper with arXiv ID '${canonicalId}' not found. Please check the ID and try again.`
+      );
     }
 
     // Insert into database
     const savedAt = Date.now();
     try {
-      agent!.sql`
+      agent.sql`
         INSERT INTO saved_papers (
           arxiv_id, title, authors_json, published, updated,
           abstract, url, tags_json, saved_at
@@ -704,26 +851,50 @@ const savePaper = tool({
         )
       `;
     } catch (error) {
-      console.error("Error inserting paper:", error);
-      return {
-        arxivId: canonicalId,
-        title: paper.title,
-        tags: [],
-        savedAt: 0,
-        wasAlreadySaved: false,
-        error: "Failed to save paper to database"
-      };
+      console.error("Database error inserting paper:", error);
+      // Check for specific error types
+      if (error instanceof Error) {
+        if (error.message.includes("UNIQUE")) {
+          return createSavePaperError(
+            canonicalId,
+            "Paper already exists in library (race condition detected).",
+            { title: paper.title }
+          );
+        }
+        if (error.message.toLowerCase().includes("quota")) {
+          return createSavePaperError(
+            canonicalId,
+            "Storage quota exceeded. Please remove some papers first.",
+            { title: paper.title }
+          );
+        }
+      }
+      // Only catch database errors - re-throw unexpected errors
+      if (!isDatabaseError(error)) {
+        throw error;
+      }
+      return createSavePaperError(
+        canonicalId,
+        "Failed to save paper to database.",
+        { title: paper.title }
+      );
     }
 
     // Update libraryPreview state (top 10 most recent)
-    await updateLibraryPreview(agent!);
+    const previewResult = await updateLibraryPreview(agent);
 
     return {
       arxivId: canonicalId,
       title: paper.title,
       tags,
       savedAt,
-      wasAlreadySaved: false
+      wasAlreadySaved: false,
+      ...(previewResult.success
+        ? {}
+        : {
+            warning:
+              "Paper saved but UI preview may be outdated. Please refresh."
+          })
     };
   }
 });
@@ -767,84 +938,52 @@ const listSavedPapers = tool({
   }): Promise<ListSavedPapersResult> => {
     const { agent } = getCurrentAgent<PaperScout>();
 
-    // Enforce max limit
-    const effectiveLimit = Math.min(limit, 100);
+    // Guard: Ensure agent context is available
+    if (!agent) {
+      return {
+        papers: [],
+        totalCount: 0,
+        wasTruncated: false,
+        error: "Agent context not available."
+      };
+    }
+
+    // Enforce max limit with additional validation
+    const effectiveLimit = Math.max(1, Math.min(limit, 100));
 
     // Fetch all papers from database (filtering done in JavaScript)
-    let allPapers: Array<{
-      arxiv_id: string;
-      title: string;
-      authors_json: string;
-      published: string;
-      abstract: string;
-      url: string;
-      tags_json: string;
-      saved_at: number;
-    }>;
+    let allPapers: SavedPaperRow[];
     try {
-      allPapers = agent!.sql<{
-        arxiv_id: string;
-        title: string;
-        authors_json: string;
-        published: string;
-        abstract: string;
-        url: string;
-        tags_json: string;
-        saved_at: number;
-      }>`
+      allPapers = agent.sql<SavedPaperRow>`
         SELECT arxiv_id, title, authors_json, published, abstract, url, tags_json, saved_at
         FROM saved_papers
         ORDER BY saved_at DESC
       `;
     } catch (error) {
-      console.error("Error querying saved papers:", error);
+      console.error("Database error querying saved papers:", error);
+      // Only catch database errors - re-throw unexpected errors
+      if (!isDatabaseError(error)) {
+        throw error;
+      }
       return {
         papers: [],
         totalCount: 0,
         wasTruncated: false,
-        error: "Failed to retrieve saved papers from database"
+        error: "Failed to retrieve saved papers from database."
       };
     }
 
     // Apply filters in JavaScript (SQL template literals are limited)
-    let filtered = allPapers;
-
-    // Filter by tag (case-insensitive)
-    if (tag) {
-      filtered = filtered.filter((row) => {
-        const tags = JSON.parse(row.tags_json || "[]") as string[];
-        return tags.some((t) => t.toLowerCase() === tag.toLowerCase());
-      });
-    }
-
-    // Filter by text (search title and abstract, case-insensitive)
-    if (filterText) {
-      const lowerFilter = filterText.toLowerCase();
-      filtered = filtered.filter((row) => {
-        return (
-          row.title.toLowerCase().includes(lowerFilter) ||
-          row.abstract.toLowerCase().includes(lowerFilter)
-        );
-      });
-    }
+    // Use declarative filter pipeline for clarity
+    const filtered = allPapers
+      .filter((row) => !tag || paperHasTag(row, tag))
+      .filter((row) => !filterText || paperMatchesText(row, filterText));
 
     const totalCount = filtered.length;
     const wasTruncated = totalCount > effectiveLimit;
 
-    // Apply limit
-    const limited = filtered.slice(0, effectiveLimit);
-
-    // Transform to result format
-    const papers = limited.map((row) => ({
-      arxivId: row.arxiv_id,
-      title: row.title,
-      authors: JSON.parse(row.authors_json || "[]") as string[],
-      published: row.published,
-      abstract: row.abstract,
-      url: row.url,
-      tags: JSON.parse(row.tags_json || "[]") as string[],
-      savedAt: row.saved_at
-    }));
+    // Apply limit and transform to result format
+    const papers = filtered.slice(0, effectiveLimit).map(rowToListPaper);
 
     return {
       papers,
@@ -909,51 +1048,95 @@ export const executions = {
   }): Promise<RemoveSavedPaperResult> => {
     const { agent } = getCurrentAgent<PaperScout>();
 
+    // Guard: Ensure agent context is available
+    if (!agent) {
+      return createRemoveError("", "Agent context not available.");
+    }
+
     // Normalize the arXiv ID to canonical form
-    const normalized = normalizeArxivId(arxivId);
+    let normalized: ReturnType<typeof normalizeArxivId>;
+    try {
+      normalized = normalizeArxivId(arxivId);
+    } catch (error) {
+      console.error("Error normalizing arXiv ID:", error);
+      return createRemoveError(
+        arxivId,
+        "Invalid arXiv ID format. Please use format like '2301.01234'."
+      );
+    }
     const canonicalId = normalized.canonical;
 
-    // Get the paper title before deleting (for confirmation message)
+    // Get the paper title before deleting (used in result message and error handling)
     let title: string | undefined;
+    let dbErrorDuringLookup = false;
     try {
-      const result = agent!.sql<{ title: string }>`
+      const result = agent.sql<{ title: string }>`
         SELECT title FROM saved_papers WHERE arxiv_id = ${canonicalId}
       `;
       title = result.length > 0 ? result[0].title : undefined;
     } catch (error) {
-      console.error("Error fetching paper for removal:", error);
+      console.error("Database error fetching paper for removal:", error);
+      // Only catch database errors - re-throw unexpected errors
+      if (!isDatabaseError(error)) {
+        throw error;
+      }
+      dbErrorDuringLookup = true;
+    }
+
+    // Distinguish between database error and paper not found
+    if (dbErrorDuringLookup) {
+      return createRemoveError(
+        canonicalId,
+        "Database error while looking up paper. Please try again."
+      );
     }
 
     if (!title) {
-      return {
-        arxivId: canonicalId,
-        success: false,
-        error: `Paper with arXiv ID '${canonicalId}' not found in library`
-      };
+      return createRemoveError(
+        canonicalId,
+        `Paper with arXiv ID '${canonicalId}' not found in library.`
+      );
     }
 
     // Delete from database
     try {
-      agent!.sql`
+      agent.sql`
         DELETE FROM saved_papers WHERE arxiv_id = ${canonicalId}
       `;
     } catch (error) {
-      console.error("Error deleting paper:", error);
-      return {
-        arxivId: canonicalId,
-        title,
-        success: false,
-        error: "Failed to remove paper from database"
-      };
+      console.error("Database error deleting paper:", error);
+      // Check for specific error types
+      if (error instanceof Error && error.message.includes("constraint")) {
+        return createRemoveError(
+          canonicalId,
+          "Cannot remove paper due to database constraint violation.",
+          title
+        );
+      }
+      // Only catch database errors - re-throw unexpected errors
+      if (!isDatabaseError(error)) {
+        throw error;
+      }
+      return createRemoveError(
+        canonicalId,
+        "Failed to remove paper from database.",
+        title
+      );
     }
 
     // Update libraryPreview state
-    await updateLibraryPreview(agent!);
+    const previewResult = await updateLibraryPreview(agent);
 
     return {
       arxivId: canonicalId,
       title,
-      success: true
+      success: true,
+      ...(previewResult.success
+        ? {}
+        : {
+            warning:
+              "Paper removed but UI preview may be outdated. Please refresh."
+          })
     };
   }
 };
