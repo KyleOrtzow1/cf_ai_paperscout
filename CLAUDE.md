@@ -49,7 +49,7 @@ Note: Tests use `wrangler.test.jsonc` (without AI binding) to avoid auth require
 
 - Worker entry point uses `routeAgentRequest(request, env)` from `agents`
 - Maps requests to `/agents/:agent/:name` where `:name` is user ID
-- Health check endpoint at `/check-open-ai-key` (legacy name, now checks Workers AI binding)
+- AI binding validation performed inline at the start of `onChatMessage()`
 
 ### Database Schema
 
@@ -255,7 +255,144 @@ src/
 tests/
 ├── arxiv.test.ts      # arXiv library tests
 └── index.test.ts      # Integration tests
+
+components/
+├── error-boundary/    # React error boundary
+└── error-notification/ # Inline error display
 ```
+
+## Error Handling
+
+PaperScout implements comprehensive error handling to ensure the app works in all browser contexts and gracefully handles failures.
+
+### Storage Error Handling
+
+**Problem**: localStorage fails in private browsing, sandboxed iframes, and storage quota exceeded scenarios.
+
+**Solution**: `src/lib/storage.ts` provides graceful degradation:
+
+```typescript
+import { safeGetItem, safeSetItem } from "@/lib/storage";
+
+// Automatically falls back: localStorage → sessionStorage → memory
+const { value, type } = safeGetItem("key", "defaultValue");
+const storageType = safeSetItem("key", "value");
+```
+
+- **persistent**: localStorage available (data persists across sessions)
+- **session**: sessionStorage available (data persists for current session)
+- **memory**: In-memory fallback (data lost on page refresh)
+
+The UI displays a warning banner when using non-persistent storage.
+
+### React Error Boundary
+
+**Problem**: Unhandled React rendering errors crash the entire app.
+
+**Solution**: `src/components/error-boundary/ErrorBoundary.tsx` catches all React errors:
+
+- Displays user-friendly error UI instead of blank screen
+- Provides "Try Again" and "Refresh Page" buttons
+- Logs errors to console for debugging
+- Shows collapsible technical details
+
+**Note**: Error boundaries do NOT catch:
+
+- Async errors (use try-catch)
+- Event handler errors (use try-catch)
+- Errors outside React components
+
+### Message Send Error Handling
+
+**Problem**: Network failures during message sending result in lost messages and no user feedback.
+
+**Solution**: `src/app.tsx` wraps sendMessage in try-catch:
+
+```typescript
+try {
+  await sendMessage(...);
+  setSendError(null);
+} catch (error) {
+  setAgentInput(message); // Restore message
+  setSendError("Failed to send message. Please try again.");
+  console.error("Send failed:", error);
+}
+```
+
+Errors display inline below the textarea using `ErrorNotification` component.
+
+### AI Binding Validation
+
+**Problem**: Missing Workers AI binding causes silent failures.
+
+**Solution**: `src/server.ts` validates binding at start of `onChatMessage()`:
+
+```typescript
+if (!this.env.AI) {
+  throw new Error(
+    "Workers AI binding not configured. Please check wrangler.jsonc configuration..."
+  );
+}
+```
+
+### Connection State Management
+
+The UI tracks agent connection state and disables input during connection:
+
+- **connecting**: Initial state, textarea disabled
+- **connected**: Agent ready, normal operation
+- **error**: Connection failed, textarea disabled with error message
+
+## Troubleshooting
+
+### App doesn't work in private browsing
+
+**Symptom**: App crashes or shows blank screen in Firefox private browsing or Chrome incognito.
+
+**Cause**: localStorage throws exceptions in some private browsing modes.
+
+**Solution**: This is now fixed. The app uses safe storage utilities that automatically fall back to sessionStorage or memory. You'll see a warning banner: "Settings will be lost when you close this tab (private browsing detected)".
+
+### Messages disappear after send failure
+
+**Symptom**: Network failure causes messages to be lost with no error shown.
+
+**Cause**: Previous implementation didn't handle sendMessage errors.
+
+**Solution**: This is now fixed. Failed messages are restored to the input field and an error notification is displayed.
+
+### Theme doesn't persist
+
+**Symptom**: Theme resets to dark after page refresh.
+
+**Cause**: localStorage failures in restricted contexts.
+
+**Solution**: This is now fixed. Theme uses safe storage utilities. In restricted contexts, theme will reset on page refresh but won't crash the app.
+
+### Connection state stuck on "Connecting..."
+
+**Symptom**: Textarea remains disabled with "Connecting to agent..." placeholder.
+
+**Cause**: Agent initialization failed or taking too long.
+
+**Solution**:
+
+1. Check browser console for errors
+2. Verify Durable Object is configured in wrangler.jsonc
+3. Ensure Workers AI binding is configured
+4. Try refreshing the page
+
+### Workers AI binding error
+
+**Symptom**: Error message: "Workers AI binding not configured"
+
+**Cause**: Missing or misconfigured AI binding in wrangler.jsonc.
+
+**Solution**:
+
+1. Check `wrangler.jsonc` has `ai.binding = "AI"`
+2. Run `npx wrangler types env.d.ts` to regenerate types
+3. Redeploy with `npm run deploy`
 
 ## Common Pitfalls
 

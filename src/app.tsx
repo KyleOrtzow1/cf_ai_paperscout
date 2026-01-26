@@ -14,6 +14,11 @@ import { Toggle } from "@/components/toggle/Toggle";
 import { Textarea } from "@/components/textarea/Textarea";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
+import { ErrorBoundary } from "@/components/error-boundary/ErrorBoundary";
+import { ErrorNotification } from "@/components/error-notification/ErrorNotification";
+
+// Utility imports
+import { safeGetItem, safeSetItem, type StorageType } from "@/lib/storage";
 
 // Icon imports
 import {
@@ -32,14 +37,19 @@ const toolsRequiringConfirmation: (keyof typeof tools)[] = [
   "getWeatherInformation"
 ];
 
-export default function Chat() {
+function Chat() {
   const [theme, setTheme] = useState<"dark" | "light">(() => {
-    // Check localStorage first, default to dark if not found
-    const savedTheme = localStorage.getItem("theme");
-    return (savedTheme as "dark" | "light") || "dark";
+    // Safe theme retrieval with fallback to dark
+    const { value } = safeGetItem("theme", "dark");
+    return (value as "dark" | "light") || "dark";
   });
   const [showDebug, setShowDebug] = useState(false);
   const [textareaHeight, setTextareaHeight] = useState("auto");
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [connectionState, setConnectionState] = useState<
+    "connecting" | "connected" | "error"
+  >("connecting");
+  const [storageMode, setStorageMode] = useState<StorageType>("persistent");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
@@ -56,8 +66,8 @@ export default function Chat() {
       document.documentElement.classList.add("light");
     }
 
-    // Save theme preference to localStorage
-    localStorage.setItem("theme", theme);
+    // Save theme preference with safe storage
+    safeSetItem("theme", theme);
   }, [theme]);
 
   // Scroll to bottom on mount
@@ -72,11 +82,18 @@ export default function Chat() {
 
   // Generate or retrieve stable user ID for agent isolation
   const [userId] = useState<string>(() => {
-    const stored = localStorage.getItem("paperscout-user-id");
+    const { value: stored, type } = safeGetItem("paperscout-user-id", "");
+
+    // Track storage mode for warning banner
+    setStorageMode(type);
+
     if (stored) return stored;
 
+    // Generate new user ID
     const newId = crypto.randomUUID();
-    localStorage.setItem("paperscout-user-id", newId);
+    const storageType = safeSetItem("paperscout-user-id", newId);
+    setStorageMode(storageType);
+
     return newId;
   });
 
@@ -84,6 +101,15 @@ export default function Chat() {
     agent: "paper-scout",
     name: userId
   });
+
+  // Validate agent connection
+  useEffect(() => {
+    if (agent) {
+      setConnectionState("connected");
+    } else {
+      setConnectionState("error");
+    }
+  }, [agent]);
 
   const [agentInput, setAgentInput] = useState("");
   const handleAgentInputChange = (
@@ -101,17 +127,25 @@ export default function Chat() {
 
     const message = agentInput;
     setAgentInput("");
+    setSendError(null);
 
-    // Send message to agent
-    await sendMessage(
-      {
-        role: "user",
-        parts: [{ type: "text", text: message }]
-      },
-      {
-        body: extraData
-      }
-    );
+    try {
+      // Send message to agent
+      await sendMessage(
+        {
+          role: "user",
+          parts: [{ type: "text", text: message }]
+        },
+        {
+          body: extraData
+        }
+      );
+    } catch (error) {
+      // Restore message and show error
+      setAgentInput(message);
+      setSendError("Failed to send message. Please try again.");
+      console.error("Failed to send message:", error);
+    }
   };
 
   const {
@@ -201,6 +235,17 @@ export default function Chat() {
             <TrashIcon size={20} />
           </Button>
         </div>
+
+        {/* Storage Warning Banner */}
+        {storageMode !== "persistent" && (
+          <div className="px-4 py-2 bg-yellow-50 dark:bg-yellow-950/20 border-b border-yellow-200 dark:border-yellow-900">
+            <p className="text-xs text-yellow-700 dark:text-yellow-400 text-center">
+              {storageMode === "session"
+                ? "Settings will be lost when you close this tab (private browsing detected)"
+                : "Settings will be lost when you refresh (storage unavailable)"}
+            </p>
+          </div>
+        )}
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 max-h-[calc(100vh-10rem)]">
@@ -367,12 +412,24 @@ export default function Chat() {
         >
           <div className="flex items-center gap-2">
             <div className="flex-1 relative">
+              {sendError && (
+                <ErrorNotification
+                  message={sendError}
+                  onDismiss={() => setSendError(null)}
+                />
+              )}
               <Textarea
-                disabled={pendingToolCallConfirmation}
+                disabled={
+                  pendingToolCallConfirmation || connectionState !== "connected"
+                }
                 placeholder={
                   pendingToolCallConfirmation
                     ? "Please respond to the tool confirmation above..."
-                    : "Send a message..."
+                    : connectionState === "connecting"
+                      ? "Connecting to agent..."
+                      : connectionState === "error"
+                        ? "Connection error. Please refresh."
+                        : "Send a message..."
                 }
                 className="flex w-full border border-neutral-200 dark:border-neutral-700 px-3 py-2  ring-offset-background placeholder:text-neutral-500 dark:placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-neutral-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl text-base! pb-10 dark:bg-neutral-900"
                 value={agentInput}
@@ -423,5 +480,14 @@ export default function Chat() {
         </form>
       </div>
     </div>
+  );
+}
+
+// Wrap Chat component with ErrorBoundary to catch all React errors
+export default function ChatWithErrorBoundary() {
+  return (
+    <ErrorBoundary>
+      <Chat />
+    </ErrorBoundary>
   );
 }

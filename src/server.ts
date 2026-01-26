@@ -84,6 +84,13 @@ export class PaperScout extends AIChatAgent<Env, PaperScoutState> {
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
   ) {
+    // Validate Workers AI binding is configured
+    if (!this.env.AI) {
+      throw new Error(
+        "Workers AI binding not configured. Please check wrangler.jsonc configuration and ensure the AI binding is properly set up."
+      );
+    }
+
     // MCP tools not used in this project - using local tools only
     // const mcpConnection = await this.mcp.connect(
     //   "https://path-to-mcp-server/sse"
