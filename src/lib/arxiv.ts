@@ -159,7 +159,7 @@ export function normalizeArxivId(idOrUrl: string): NormalizedArxivId {
     return {
       canonical,
       version,
-      versioned: id,
+      versioned: id
     };
   }
 
@@ -182,7 +182,7 @@ export function buildArxivQueryUrl(
     start = 0,
     sortBy = "relevance",
     sortOrder = "descending",
-    categories,
+    categories
   } = options;
 
   // Build the search query
@@ -190,10 +190,10 @@ export function buildArxivQueryUrl(
 
   // Add category filter if specified
   if (categories && categories.length > 0) {
-    const categoryFilter = categories.map((cat) => `cat:${cat}`).join("+OR+");
-    searchQuery = `(${encodeURIComponent(query)})+AND+(${categoryFilter})`;
+    const categoryFilter = categories.map((cat) => `cat:${cat}`).join(" OR ");
+    searchQuery = `(${query}) AND (${categoryFilter})`;
   } else {
-    searchQuery = encodeURIComponent(query);
+    searchQuery = query;
   }
 
   const params = new URLSearchParams();
@@ -220,7 +220,7 @@ export function parseArxivAtom(xml: string): ArxivPaper[] {
     ignoreAttributes: false,
     attributeNamePrefix: "@_",
     // Ensure arrays are always arrays even with single element
-    isArray: (name) => ["entry", "author", "link", "category"].includes(name),
+    isArray: (name) => ["entry", "author", "link", "category"].includes(name)
   });
 
   let parsed: Record<string, unknown>;
@@ -350,7 +350,7 @@ function parseEntry(entry: Record<string, unknown>): ArxivPaper | null {
     abstract: cleanAbstract,
     url,
     pdfUrl,
-    categories: categories.length > 0 ? categories : undefined,
+    categories: categories.length > 0 ? categories : undefined
   };
 }
 
@@ -369,7 +369,11 @@ export async function fetchArxivPapers(
   query: string,
   options: FetchArxivOptions = {}
 ): Promise<ArxivPaper[]> {
-  const { fetchImpl = globalThis.fetch, throttleMs, ...searchOptions } = options;
+  const {
+    fetchImpl = globalThis.fetch,
+    throttleMs,
+    ...searchOptions
+  } = options;
 
   // Optional rate limiting delay
   if (throttleMs && throttleMs > 0) {

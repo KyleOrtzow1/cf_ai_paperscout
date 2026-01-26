@@ -9,7 +9,7 @@ import {
   fetchArxivPapers,
   fetchArxivPaperById,
   ArxivNetworkError,
-  ArxivHttpError,
+  ArxivHttpError
 } from "../src/lib/arxiv";
 
 // =============================================================================
@@ -105,14 +105,14 @@ describe("normalizeArxivId", () => {
     expect(result).toEqual({
       canonical: "2301.01234",
       version: 2,
-      versioned: "2301.01234v2",
+      versioned: "2301.01234v2"
     });
   });
 
   it("parses new-style ID without version", () => {
     const result = normalizeArxivId("2301.01234");
     expect(result).toEqual({
-      canonical: "2301.01234",
+      canonical: "2301.01234"
     });
   });
 
@@ -121,7 +121,7 @@ describe("normalizeArxivId", () => {
     expect(result).toEqual({
       canonical: "cs/9901001",
       version: 3,
-      versioned: "cs/9901001v3",
+      versioned: "cs/9901001v3"
     });
   });
 
@@ -130,7 +130,7 @@ describe("normalizeArxivId", () => {
     expect(result).toEqual({
       canonical: "hep-th/9901001",
       version: 1,
-      versioned: "hep-th/9901001v1",
+      versioned: "hep-th/9901001v1"
     });
   });
 
@@ -139,7 +139,7 @@ describe("normalizeArxivId", () => {
     expect(result).toEqual({
       canonical: "2301.01234",
       version: 2,
-      versioned: "2301.01234v2",
+      versioned: "2301.01234v2"
     });
   });
 
@@ -148,7 +148,7 @@ describe("normalizeArxivId", () => {
     expect(result).toEqual({
       canonical: "2301.01234",
       version: 1,
-      versioned: "2301.01234v1",
+      versioned: "2301.01234v1"
     });
   });
 
@@ -157,14 +157,14 @@ describe("normalizeArxivId", () => {
     expect(result).toEqual({
       canonical: "2301.01234",
       version: 2,
-      versioned: "2301.01234v2",
+      versioned: "2301.01234v2"
     });
   });
 
   it("handles URL without version", () => {
     const result = normalizeArxivId("https://arxiv.org/abs/2301.01234");
     expect(result).toEqual({
-      canonical: "2301.01234",
+      canonical: "2301.01234"
     });
   });
 });
@@ -177,8 +177,8 @@ describe("buildArxivQueryUrl", () => {
   it("builds basic query URL with defaults", () => {
     const url = buildArxivQueryUrl("diffusion models");
     expect(url).toContain("https://export.arxiv.org/api/query");
-    // Note: encodeURIComponent encodes space as %20, then URLSearchParams encodes % as %25
-    expect(url).toContain("search_query=all%3Adiffusion%2520models");
+    // URLSearchParams encodes space as + (or %20), and colon as %3A
+    expect(url).toMatch(/search_query=all%3Adiffusion(\+|%20)models/);
     expect(url).toContain("max_results=10");
     expect(url).toContain("start=0");
     expect(url).toContain("sortBy=relevance");
@@ -198,7 +198,7 @@ describe("buildArxivQueryUrl", () => {
   it("respects sortBy and sortOrder options", () => {
     const url = buildArxivQueryUrl("test", {
       sortBy: "lastUpdatedDate",
-      sortOrder: "ascending",
+      sortOrder: "ascending"
     });
     expect(url).toContain("sortBy=lastUpdatedDate");
     expect(url).toContain("sortOrder=ascending");
@@ -206,11 +206,13 @@ describe("buildArxivQueryUrl", () => {
 
   it("adds category filter when categories provided", () => {
     const url = buildArxivQueryUrl("test", { categories: ["cs.AI", "cs.LG"] });
-    // URL encoding turns : into %3A
+    // URL encoding turns : into %3A, spaces into + or %20
     expect(url).toContain("cat%3Acs.AI");
     expect(url).toContain("cat%3Acs.LG");
-    expect(url).toContain("%2BAND%2B");
-    expect(url).toContain("%2BOR%2B");
+    // Check for AND operator (space-separated, URLSearchParams encodes spaces)
+    expect(url).toMatch(/AND/);
+    // Check for OR operator (space-separated, URLSearchParams encodes spaces)
+    expect(url).toMatch(/OR/);
   });
 });
 
@@ -311,12 +313,12 @@ describe("fetchArxivPapers", () => {
   it("calls the correct URL and parses response", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
-      text: () => Promise.resolve(SINGLE_ENTRY_XML),
+      text: () => Promise.resolve(SINGLE_ENTRY_XML)
     });
 
     const papers = await fetchArxivPapers("diffusion models", {
       fetchImpl: mockFetch,
-      maxResults: 5,
+      maxResults: 5
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -341,7 +343,7 @@ describe("fetchArxivPapers", () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 500,
-      statusText: "Internal Server Error",
+      statusText: "Internal Server Error"
     });
 
     await expect(
@@ -359,7 +361,7 @@ describe("fetchArxivPapers", () => {
   it("returns empty array on malformed XML response", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
-      text: () => Promise.resolve(MALFORMED_XML),
+      text: () => Promise.resolve(MALFORMED_XML)
     });
 
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -380,11 +382,11 @@ describe("fetchArxivPaperById", () => {
   it("fetches paper by ID and returns single result", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
-      text: () => Promise.resolve(SINGLE_ENTRY_XML),
+      text: () => Promise.resolve(SINGLE_ENTRY_XML)
     });
 
     const paper = await fetchArxivPaperById("2301.01234v2", {
-      fetchImpl: mockFetch,
+      fetchImpl: mockFetch
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -398,11 +400,11 @@ describe("fetchArxivPaperById", () => {
   it("returns null when paper not found", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
-      text: () => Promise.resolve(EMPTY_RESULTS_XML),
+      text: () => Promise.resolve(EMPTY_RESULTS_XML)
     });
 
     const paper = await fetchArxivPaperById("nonexistent", {
-      fetchImpl: mockFetch,
+      fetchImpl: mockFetch
     });
 
     expect(paper).toBeNull();

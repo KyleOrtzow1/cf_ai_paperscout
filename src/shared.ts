@@ -42,6 +42,6 @@ export function toLibraryPreview(
     arxivId: paper.arxivId,
     title: paper.title,
     savedAt,
-    tags,
+    tags
   };
 }

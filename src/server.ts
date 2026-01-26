@@ -23,13 +23,21 @@ import type { PaperScoutState } from "./shared";
  */
 export class PaperScout extends AIChatAgent<Env, PaperScoutState> {
   /**
+   * Get the AI binding for use in tools
+   * Exposes the protected env.AI as a public method
+   */
+  getAIBinding(): Ai {
+    return this.env.AI;
+  }
+
+  /**
    * Initial state with default preferences and empty library
    */
   initialState: PaperScoutState = {
     preferences: {
       defaultMaxResults: 5,
-      recencyDays: 30,
-      categories: ["cs.AI", "cs.LG"]
+      recencyDays: 3650, // 10 years to ensure we capture any recent papers
+      categories: [] // Empty array means search all categories
     },
     libraryPreview: []
   };
@@ -76,15 +84,13 @@ export class PaperScout extends AIChatAgent<Env, PaperScoutState> {
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
   ) {
+    // MCP tools not used in this project - using local tools only
     // const mcpConnection = await this.mcp.connect(
     //   "https://path-to-mcp-server/sse"
     // );
 
-    // Collect all tools, including MCP tools
-    const allTools = {
-      ...tools,
-      ...this.mcp.getAITools()
-    };
+    // Use our PaperScout tools
+    const allTools = tools;
 
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
@@ -115,22 +121,25 @@ export class PaperScout extends AIChatAgent<Env, PaperScoutState> {
 You are PaperScout, an AI assistant for discovering and organizing academic papers from arXiv.
 
 ## Current Capabilities (in this build)
+- **Search arXiv**: Use the searchArxiv tool to find papers by query (supports keyword filtering and category restrictions)
+- **Summarize papers**: Use the summarizePaper tool to generate structured summaries from paper metadata and abstracts
 - General conversation about research topics, ML/AI concepts, and paper discovery strategies
 - Utility tools (weather, time, scheduling) — use only if the user asks or if clearly helpful; otherwise stay focused on PaperScout's mission
 
 ## PaperScout Features (planned, not yet implemented)
-- Searching arXiv
-- Summarizing papers from metadata/abstract
-- Saving papers to a personal library and listing/removing saved items
+- Saving papers to a personal library
+- Listing and removing saved items
+- Full-text PDF analysis beyond abstracts
 
-If a user asks for planned features, clearly say they aren't available yet in this version. Offer helpful alternatives:
-- Help refine a search query the user can run later (keywords, categories, date window)
-- If the user provides an arXiv ID/link, you can discuss it and keep a short list *within this chat* (do not claim it is saved/persisted)
+When using searchArxiv and summarizePaper tools:
+- Always cite arXiv IDs and links in your responses
+- For summaries, include the "based on abstract only" disclaimer
+- Use sensible defaults from user preferences, but allow overrides in the query
 
 ## Rules
 1. **Never hallucinate**: Do not invent paper titles, authors, abstracts, results, or arXiv IDs. If you don't have the info, say so.
-2. **Citations**: If a paper is discussed and an arXiv ID is known/provided, include the arXiv ID and a link. If not provided, ask for the ID or link.
-3. **Prefer action, but be honest**: Use sensible defaults and take the next helpful step. Never claim you searched, saved, or summarized a paper unless the relevant feature is actually available and used.
+2. **Citations**: Always include the arXiv ID and link when discussing papers found via these tools.
+3. **Prefer action, but be honest**: Use the available tools to search and summarize. Never claim you searched or summarized a paper unless you actually used the tool.
 
 ${getSchedulePrompt({ date: new Date() })}
 `,
