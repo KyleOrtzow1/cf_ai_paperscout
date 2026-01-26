@@ -36,8 +36,8 @@
 
 ## F) Frontend polish (minimal but impressive)
 
-- [ ] 17. Remove OpenAI-key checks and related UI gating (since you're on Workers AI)
-- [ ] 18. Add stable `userId` + pass `name: userId` into `useAgent`
+- [x] 17. Remove OpenAI-key checks and related UI gating (since you're on Workers AI)
+- [x] 18. Add stable `userId` + pass `name: userId` into `useAgent`
 - [ ] 19. Add Library side panel driven by synced agent state
 
 ## G) Docs + submission readiness
