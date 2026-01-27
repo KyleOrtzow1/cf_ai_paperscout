@@ -27,6 +27,11 @@ export const LibraryPanel = ({
 }: LibraryPanelProps) => {
   const [expandedPapers, setExpandedPapers] = useState<Set<string>>(new Set());
   const panelRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   // Prevent body overflow when panel is open (mobile overlay)
   useEffect(() => {
@@ -62,20 +67,28 @@ export const LibraryPanel = ({
       if (e.key === "Tab") {
         if (e.shiftKey) {
           // Shift + Tab moves focus backward
-          if (document.activeElement === firstElement) {
+          if (
+            firstElement &&
+            lastElement &&
+            document.activeElement === firstElement
+          ) {
             e.preventDefault();
             lastElement.focus();
           }
         } else {
           // Tab moves focus forward
-          if (document.activeElement === lastElement) {
+          if (
+            firstElement &&
+            lastElement &&
+            document.activeElement === lastElement
+          ) {
             e.preventDefault();
             firstElement.focus();
           }
         }
       }
       if (e.key === "Escape") {
-        onClose();
+        onCloseRef.current();
       }
     };
 
@@ -83,7 +96,7 @@ export const LibraryPanel = ({
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp);
