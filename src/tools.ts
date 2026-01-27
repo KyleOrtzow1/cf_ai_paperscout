@@ -152,7 +152,7 @@ export interface RemoveSavedPaperResult {
  * Safely parse JSON with fallback value on error
  * Prevents JSON parsing errors from breaking operations
  */
-function safeJsonParse<T>(json: string, fallback: T): T {
+export function safeJsonParse<T>(json: string, fallback: T): T {
   try {
     const parsed = JSON.parse(json || JSON.stringify(fallback));
     return parsed as T;
@@ -505,14 +505,32 @@ const searchArxiv = tool({
       ),
     categories: z
       .preprocess((val) => {
-        // Handle LLMs that generate arrays as JSON strings
+        // Handle LLMs that generate arrays as JSON-like strings
         if (typeof val === "string") {
-          try {
-            const parsed = JSON.parse(val);
-            return Array.isArray(parsed) ? parsed : undefined;
-          } catch {
-            return undefined;
+          const trimmed = val.trim();
+          if (!trimmed) return undefined;
+          if (trimmed.startsWith("[")) {
+            try {
+              const parsed = JSON.parse(trimmed);
+              return Array.isArray(parsed) ? parsed : undefined;
+            } catch {
+              try {
+                const normalized = trimmed.replace(/'/g, "\"");
+                const parsed = JSON.parse(normalized);
+                return Array.isArray(parsed) ? parsed : undefined;
+              } catch {
+                return trimmed
+                  .slice(1, -1)
+                  .split(",")
+                  .map((item) => item.trim().replace(/^['"]|['"]$/g, ""))
+                  .filter(Boolean);
+              }
+            }
           }
+          return trimmed
+            .split(",")
+            .map((item) => item.trim().replace(/^['"]|['"]$/g, ""))
+            .filter(Boolean);
         }
         return val;
       }, z.array(z.string()))
@@ -721,7 +739,27 @@ const savePaper = tool({
         "arXiv paper ID to save (e.g., '2301.01234' or '2301.01234v2')"
       ),
     tags: z
-      .array(z.string())
+      .preprocess((value) => {
+        if (value === undefined || value === null) return undefined;
+        if (Array.isArray(value)) return value;
+        if (typeof value === "string") {
+          const trimmed = value.trim();
+          if (!trimmed) return [];
+          if (trimmed.startsWith("[")) {
+            try {
+              const parsed = JSON.parse(trimmed);
+              return Array.isArray(parsed) ? parsed : [String(parsed)];
+            } catch {
+              // Fall through to comma-separated parsing.
+            }
+          }
+          return trimmed
+            .split(",")
+            .map((tag) => tag.trim())
+            .filter(Boolean);
+        }
+        return value;
+      }, z.array(z.string()))
       .optional()
       .describe(
         "Optional tags to categorize the paper (e.g., ['diffusion', 'image-generation'])"

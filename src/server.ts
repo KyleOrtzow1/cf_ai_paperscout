@@ -15,8 +15,8 @@ import {
 } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
 import { processToolCalls, cleanupMessages } from "./utils";
-import { tools, executions } from "./tools";
-import type { PaperScoutState } from "./shared";
+import { tools, executions, safeJsonParse } from "./tools";
+import type { PaperScoutState, LibraryPreviewItem } from "./shared";
 
 /**
  * PaperScout Agent - AI-powered research paper discovery and management
@@ -63,7 +63,7 @@ export class PaperScout extends AIChatAgent<Env, PaperScoutState> {
 
     // Index for efficient "recent saves" queries
     this.sql`
-      CREATE INDEX IF NOT EXISTS idx_saved_papers_saved_at 
+      CREATE INDEX IF NOT EXISTS idx_saved_papers_saved_at
       ON saved_papers(saved_at)
     `;
 
@@ -75,6 +75,36 @@ export class PaperScout extends AIChatAgent<Env, PaperScoutState> {
         created_at INTEGER
       )
     `;
+
+    // Load existing library preview for UI
+    try {
+      const recent = this.sql<{
+        arxiv_id: string;
+        title: string;
+        saved_at: number;
+        tags_json: string;
+      }>`
+        SELECT arxiv_id, title, saved_at, tags_json
+        FROM saved_papers
+        ORDER BY saved_at DESC
+        LIMIT 10
+      `;
+
+      const preview: LibraryPreviewItem[] = recent.map((row) => ({
+        arxivId: row.arxiv_id,
+        title: row.title,
+        savedAt: row.saved_at,
+        tags: safeJsonParse<string[]>(row.tags_json, [])
+      }));
+
+      this.setState({
+        ...this.state,
+        libraryPreview: preview
+      });
+    } catch (error) {
+      console.error("Error loading initial library preview:", error);
+      // Don't throw - initialization failure shouldn't break agent startup
+    }
   }
 
   /**
