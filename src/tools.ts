@@ -17,8 +17,6 @@ import {
   ArxivHttpError
 } from "./lib/arxiv";
 import type { LibraryPreviewItem } from "./shared";
-import { generateText } from "ai";
-import { createWorkersAI } from "workers-ai-provider";
 
 // =============================================================================
 // Types
@@ -48,29 +46,17 @@ interface SavedPaperPreviewRow {
   tags_json: string;
 }
 
-// =============================================================================
-// Constants
-// =============================================================================
-
 /**
- * Prompt version for cache key - bump when prompt changes significantly
+ * Paper metadata returned by searchArxiv (abstracts omitted for model context)
  */
-const SUMMARY_PROMPT_VERSION = "v1";
-
-/**
- * Generate cache key for paper summaries
- * Composite key allows cache invalidation when prompt version changes
- */
-function summaryKey(arxivId: string): string {
-  return `${arxivId}:${SUMMARY_PROMPT_VERSION}`;
-}
+export type SearchArxivPaper = Omit<ArxivPaper, "abstract">;
 
 /**
  * Result type for searchArxiv tool - consistent shape for LLM context
  */
 export interface SearchArxivResult {
-  /** Papers matching the query and filters */
-  papers: ArxivPaper[];
+  /** Papers matching the query and filters (abstracts omitted) */
+  papers: SearchArxivPaper[];
   /** Original search query */
   query: string;
   /** Recency filter applied (in days) */
@@ -87,15 +73,25 @@ export interface SearchArxivResult {
  * Result type for summarizePaper tool - consistent shape for LLM context
  */
 export interface SummarizePaperResult {
-  /** arXiv ID of the summarized paper */
+  /** arXiv ID of the paper */
   arxivId: string;
   /** Paper title */
   title?: string;
-  /** Generated markdown summary */
-  summaryMd: string;
-  /** Whether the summary was retrieved from cache */
-  cached: boolean;
-  /** Error message if summarization failed */
+  /** List of author names */
+  authors?: string[];
+  /** Publication date (ISO string) */
+  published?: string;
+  /** Last updated date (ISO string) */
+  updated?: string;
+  /** Summary instruction followed by the abstract */
+  summaryPrompt?: string;
+  /** Link to arXiv abstract page */
+  url?: string;
+  /** arXiv categories (e.g., ["cs.AI", "cs.LG"]) */
+  categories?: string[];
+  /** Link to PDF */
+  pdfUrl?: string;
+  /** Error message if lookup failed */
   error?: string;
 }
 
@@ -269,61 +265,6 @@ function createRemoveError(
 }
 
 // =============================================================================
-// Summary Prompt Builder
-// =============================================================================
-
-/**
- * Build a prompt for generating a structured paper summary
- */
-function buildSummaryPrompt(paper: ArxivPaper): string {
-  const authorsStr =
-    paper.authors.slice(0, 5).join(", ") +
-    (paper.authors.length > 5
-      ? ` et al. (${paper.authors.length} authors)`
-      : "");
-  const publishedDate = new Date(paper.published).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric"
-  });
-
-  return `You are a research paper summarizer. Given the following paper metadata and abstract, generate a structured summary.
-
-## Paper Information
-**Title:** ${paper.title}
-**Authors:** ${authorsStr}
-**Published:** ${publishedDate}
-**arXiv ID:** ${paper.arxivId}
-**Categories:** ${paper.categories?.join(", ") || "Not specified"}
-
-## Abstract
-${paper.abstract}
-
-## Instructions
-Generate a structured summary with EXACTLY these sections in markdown format:
-
-### TL;DR
-(1-2 sentences capturing the core contribution)
-
-### Key Contributions
-(3-5 bullet points)
-
-### Limitations & Open Questions
-(2-4 bullet points based on what can be inferred from the abstract)
-
-### Who Should Read This
-(1-2 sentences describing the target audience)
-
-### Related Keywords
-(Comma-separated list of 5-8 relevant terms for discoverability)
-
----
-*⚠️ This summary is based on the paper's abstract and metadata only, not the full text.*
-
-Respond with ONLY the markdown summary, no additional commentary.`;
-}
-
-// =============================================================================
 // Library Management Helpers
 // =============================================================================
 
@@ -480,7 +421,7 @@ const cancelScheduledTask = tool({
  */
 const searchArxiv = tool({
   description:
-    "Search arXiv for academic papers matching a query. Returns papers with titles, authors, abstracts, and links. Use this when the user wants to find or discover research papers on a topic.",
+    "Search arXiv for academic papers matching a query. Returns papers with titles, authors, categories, and links (abstracts omitted). Use this when the user wants to find or discover research papers on a topic.",
   inputSchema: z.object({
     query: z
       .string()
@@ -596,52 +537,35 @@ const searchArxiv = tool({
       return publishedTime >= cutoffTime;
     });
 
+    const sanitizedPapers: SearchArxivPaper[] = filteredPapers.map(
+      ({ abstract: _abstract, ...paper }) => paper
+    );
+
     return {
-      papers: filteredPapers,
+      papers: sanitizedPapers,
       query,
       recencyDays: effectiveRecencyDays,
       totalFetched,
-      totalAfterFilter: filteredPapers.length
+      totalAfterFilter: sanitizedPapers.length
     };
   }
 });
 
 /**
- * Summarize an arXiv paper by ID.
- * Generates a structured markdown summary using Workers AI.
- * Caches summaries in SQL with prompt-versioned keys.
+ * Fetch an arXiv paper by ID and return abstract + metadata.
+ * The model should generate any summary from the abstract.
  */
 const summarizePaper = tool({
   description:
-    "Generate a structured summary of an arXiv paper given its ID. Returns TL;DR, key contributions, limitations, target audience, and keywords. Use this when the user wants to understand what a paper is about.",
+    "Fetch an arXiv paper's abstract and metadata given its ID. Returns title, authors, dates, categories, links, and a summary prompt that includes the abstract (no summary). Use this when the user wants to understand what a paper is about.",
   inputSchema: z.object({
     arxivId: z
       .string()
       .describe(
-        "arXiv paper ID to summarize (e.g., '2301.01234' or '2301.01234v2')"
+        "arXiv paper ID to fetch (e.g., '2301.01234' or '2301.01234v2')"
       )
   }),
   execute: async ({ arxivId }): Promise<SummarizePaperResult> => {
-    const { agent } = getCurrentAgent<PaperScout>();
-    const cacheKey = summaryKey(arxivId);
-
-    // Check cache first
-    try {
-      const cached = agent!.sql<{ summary_md: string }>`
-        SELECT summary_md FROM paper_summaries WHERE arxiv_id = ${cacheKey}
-      `;
-      if (cached.length > 0) {
-        return {
-          arxivId,
-          summaryMd: cached[0].summary_md,
-          cached: true
-        };
-      }
-    } catch (error) {
-      // Cache miss or error, continue to generate
-      console.warn("Cache lookup failed:", error);
-    }
-
     // Fetch paper from arXiv
     let paper: ArxivPaper | null;
     try {
@@ -650,16 +574,12 @@ const summarizePaper = tool({
       if (error instanceof ArxivNetworkError) {
         return {
           arxivId,
-          summaryMd: "",
-          cached: false,
           error: "Failed to connect to arXiv. Please try again later."
         };
       }
       if (error instanceof ArxivHttpError) {
         return {
           arxivId,
-          summaryMd: "",
-          cached: false,
           error: `arXiv returned an error (HTTP ${error.status}). Please try again.`
         };
       }
@@ -669,55 +589,20 @@ const summarizePaper = tool({
     if (!paper) {
       return {
         arxivId,
-        summaryMd: "",
-        cached: false,
         error: `Paper with arXiv ID '${arxivId}' not found. Please check the ID and try again.`
       };
     }
 
-    // Generate summary using Workers AI via ai-sdk
-    const workersai = createWorkersAI({ binding: agent!.getAIBinding() });
-    const model = workersai(
-      "@cf/meta/llama-3.3-70b-instruct-fp8-fast" as Parameters<
-        typeof workersai
-      >[0]
-    );
-
-    let summaryMd: string;
-    try {
-      const result = await generateText({
-        model,
-        prompt: buildSummaryPrompt(paper)
-      });
-      summaryMd = result.text;
-    } catch (error) {
-      console.error("AI generation failed:", error);
-      return {
-        arxivId,
-        title: paper.title,
-        summaryMd: "",
-        cached: false,
-        error: "Failed to generate summary. Please try again."
-      };
-    }
-
-    // Cache the result
-    try {
-      const now = Date.now();
-      agent!.sql`
-        INSERT OR REPLACE INTO paper_summaries (arxiv_id, summary_md, created_at) 
-        VALUES (${cacheKey}, ${summaryMd}, ${now})
-      `;
-    } catch (error) {
-      // Log but don't fail - summary was generated successfully
-      console.error("Failed to cache summary:", error);
-    }
-
     return {
-      arxivId,
+      arxivId: paper.arxivId,
       title: paper.title,
-      summaryMd,
-      cached: false
+      authors: paper.authors,
+      published: paper.published,
+      updated: paper.updated,
+      summaryPrompt: `format a summery in structured markdown format\n\n${paper.abstract}`,
+      url: paper.url,
+      categories: paper.categories,
+      pdfUrl: paper.pdfUrl
     };
   }
 });
