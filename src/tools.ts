@@ -515,7 +515,7 @@ const searchArxiv = tool({
               return Array.isArray(parsed) ? parsed : undefined;
             } catch {
               try {
-                const normalized = trimmed.replace(/'/g, "\"");
+                const normalized = trimmed.replace(/'/g, '"');
                 const parsed = JSON.parse(normalized);
                 return Array.isArray(parsed) ? parsed : undefined;
               } catch {
