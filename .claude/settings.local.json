@@ -1,5 +1,8 @@
 {
   "permissions": {
     "allow": ["Bash(npm run check:*)"]
+  },
+  "enabledPlugins": {
+    "feature-dev@claude-plugins-official": true
   }
 }
