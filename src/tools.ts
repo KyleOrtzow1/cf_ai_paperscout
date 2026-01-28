@@ -7,7 +7,6 @@ import { z } from "zod/v3";
 
 import type { PaperScout } from "./server";
 import { getCurrentAgent } from "agents";
-import { scheduleSchema } from "agents/schedule";
 import {
   type ArxivPaper,
   fetchArxivPapers,
@@ -311,105 +310,6 @@ async function updateLibraryPreview(
   }
 }
 
-/**
- * Weather information tool that requires human confirmation
- * When invoked, this will present a confirmation dialog to the user
- */
-const getWeatherInformation = tool({
-  description: "show the weather in a given city to the user",
-  inputSchema: z.object({ city: z.string() })
-  // Omitting execute function makes this tool require human confirmation
-});
-
-/**
- * Local time tool that executes automatically
- * Since it includes an execute function, it will run without user confirmation
- * This is suitable for low-risk operations that don't need oversight
- */
-const getLocalTime = tool({
-  description: "get the local time for a specified location",
-  inputSchema: z.object({ location: z.string() }),
-  execute: async ({ location }) => {
-    console.log(`Getting local time for ${location}`);
-    return "10am";
-  }
-});
-
-const scheduleTask = tool({
-  description: "A tool to schedule a task to be executed at a later time",
-  inputSchema: scheduleSchema,
-  execute: async ({ when, description }) => {
-    // we can now read the agent context from the ALS store
-    const { agent } = getCurrentAgent<PaperScout>();
-
-    function throwError(msg: string): string {
-      throw new Error(msg);
-    }
-    if (when.type === "no-schedule") {
-      return "Not a valid schedule input";
-    }
-    const input =
-      when.type === "scheduled"
-        ? when.date // scheduled
-        : when.type === "delayed"
-          ? when.delayInSeconds // delayed
-          : when.type === "cron"
-            ? when.cron // cron
-            : throwError("not a valid schedule input");
-    try {
-      agent!.schedule(input!, "executeTask", description);
-    } catch (error) {
-      console.error("error scheduling task", error);
-      return `Error scheduling task: ${error}`;
-    }
-    return `Task scheduled for type "${when.type}" : ${input}`;
-  }
-});
-
-/**
- * Tool to list all scheduled tasks
- * This executes automatically without requiring human confirmation
- */
-const getScheduledTasks = tool({
-  description: "List all tasks that have been scheduled",
-  inputSchema: z.object({}),
-  execute: async () => {
-    const { agent } = getCurrentAgent<PaperScout>();
-
-    try {
-      const tasks = agent!.getSchedules();
-      if (!tasks || tasks.length === 0) {
-        return "No scheduled tasks found.";
-      }
-      return tasks;
-    } catch (error) {
-      console.error("Error listing scheduled tasks", error);
-      return `Error listing scheduled tasks: ${error}`;
-    }
-  }
-});
-
-/**
- * Tool to cancel a scheduled task by its ID
- * This executes automatically without requiring human confirmation
- */
-const cancelScheduledTask = tool({
-  description: "Cancel a scheduled task using its ID",
-  inputSchema: z.object({
-    taskId: z.string().describe("The ID of the task to cancel")
-  }),
-  execute: async ({ taskId }) => {
-    const { agent } = getCurrentAgent<PaperScout>();
-    try {
-      await agent!.cancelSchedule(taskId);
-      return `Task ${taskId} has been successfully canceled.`;
-    } catch (error) {
-      console.error("Error canceling scheduled task", error);
-      return `Error canceling task ${taskId}: ${error}`;
-    }
-  }
-});
-
 // =============================================================================
 // PaperScout Tools
 // =============================================================================
@@ -421,7 +321,7 @@ const cancelScheduledTask = tool({
  */
 const searchArxiv = tool({
   description:
-    "Search arXiv for academic papers matching a query. Returns papers with titles, authors, categories, and links (abstracts omitted). Use this when the user wants to find or discover research papers on a topic.",
+    "Search arXiv for academic papers matching a query. Returns paper metadata (title/authors/categories/dates/url). Abstracts are omitted. Use for: find/search/discover/recommend papers. Do not invent abstracts or paper details not returned by the tool.",
   inputSchema: z.object({
     query: z
       .string()
@@ -557,7 +457,7 @@ const searchArxiv = tool({
  */
 const summarizePaper = tool({
   description:
-    "Fetch an arXiv paper's abstract and metadata given its ID. Returns title, authors, dates, categories, links, and a summary prompt that includes the abstract (no summary). Use this when the user wants to understand what a paper is about.",
+    'Fetch an arXiv paper\'s abstract and metadata by arXiv ID (e.g., 2401.01234 or 2401.01234v2). This tool does NOT generate an LLM-written summary. After calling it, summarize using ONLY the returned abstract/metadata and include: "Disclaimer: based on arXiv abstract/metadata only."',
   inputSchema: z.object({
     arxivId: z
       .string()
@@ -614,9 +514,7 @@ const summarizePaper = tool({
  */
 const savePaper = tool({
   description:
-    "Save an arXiv paper to the user's personal library with optional tags. " +
-    "Use this when the user wants to bookmark, save, or add a paper to their collection. " +
-    "The paper will be fetched from arXiv if not already in the database.",
+    "Save an arXiv paper to the user's personal library by arXiv ID, with optional tags. Fetches metadata from arXiv if needed. Use for: save/bookmark/add to library.",
   inputSchema: z.object({
     arxivId: z
       .string()
@@ -829,11 +727,7 @@ const savePaper = tool({
  */
 const listSavedPapers = tool({
   description:
-    "List papers saved in the user's personal library. " +
-    "Supports filtering by text search (searches titles and abstracts) and tag filtering. " +
-    "Use this when the user wants to: see/show/view/list their saved papers, review their library, " +
-    "find a specific saved paper, check what papers they have saved, or view their collection. " +
-    "This tool should be used whenever the user asks about their saved/stored papers.",
+    'List papers saved in the user\'s personal library. Supports optional filtering by filterText (title/abstract search) and tag. MUST be called whenever the user asks about their library/saved papers/collection (including "what did I save?").',
   inputSchema: z.object({
     filterText: z
       .string()
@@ -925,9 +819,7 @@ const listSavedPapers = tool({
  */
 const removeSavedPaper = tool({
   description:
-    "Remove a paper from the user's personal library. " +
-    "This action requires user confirmation. " +
-    "Use this when the user wants to delete or remove a saved paper from their collection.",
+    "Remove a paper from the user's personal library by arXiv ID. Requires user confirmation via the tool-confirmation flow. Use for: remove/delete/unsave.",
   inputSchema: z.object({
     arxivId: z
       .string()
@@ -941,11 +833,6 @@ const removeSavedPaper = tool({
  * These will be provided to the AI model to describe available capabilities
  */
 export const tools = {
-  getWeatherInformation,
-  getLocalTime,
-  scheduleTask,
-  getScheduledTasks,
-  cancelScheduledTask,
   searchArxiv,
   summarizePaper,
   savePaper,
@@ -959,11 +846,6 @@ export const tools = {
  * Each function here corresponds to a tool above that doesn't have an execute function
  */
 export const executions = {
-  getWeatherInformation: async ({ city }: { city: string }) => {
-    console.log(`Getting weather information for ${city}`);
-    return `The weather in ${city} is sunny`;
-  },
-
   removeSavedPaper: async ({
     arxivId
   }: {

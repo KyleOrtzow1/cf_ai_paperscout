@@ -38,10 +38,7 @@ import {
 
 // List of tools that require human confirmation
 // NOTE: this should match the tools that don't have execute functions in tools.ts
-const toolsRequiringConfirmation: (keyof typeof tools)[] = [
-  "getWeatherInformation",
-  "removeSavedPaper"
-];
+const toolsRequiringConfirmation: (keyof typeof tools)[] = ["removeSavedPaper"];
 
 function Chat() {
   const [theme, setTheme] = useState<"dark" | "light">(() => {
@@ -324,11 +321,13 @@ function Chat() {
                     <ul className="text-sm text-left space-y-2">
                       <li className="flex items-center gap-2">
                         <span className="text-[#F48120]">•</span>
-                        <span>Weather information for any city</span>
+                        <span>Searching for papers on any topic</span>
                       </li>
                       <li className="flex items-center gap-2">
                         <span className="text-[#F48120]">•</span>
-                        <span>Local time in different locations</span>
+                        <span>
+                          Summarizing papers and saving to your library
+                        </span>
                       </li>
                     </ul>
                   </div>
