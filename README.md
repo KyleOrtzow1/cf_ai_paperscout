@@ -2,8 +2,6 @@
 
 An AI-powered research assistant for discovering and organizing academic papers from arXiv, built on Cloudflare Workers with Durable Objects and Workers AI.
 
-> **No API keys required** — PaperScout uses Cloudflare Workers AI for inference, eliminating the need for external LLM services.
-
 ## What is PaperScout?
 
 PaperScout is an interactive research assistant that helps you search arXiv for academic papers, read AI-generated summaries, and build a persistent library of papers you're interested in. Every user gets their own isolated agent instance with full SQLite persistence—your library survives page refreshes and browser sessions.
@@ -86,11 +84,9 @@ npm run deploy
 
 This runs Vite build + Wrangler deploy. The first deployment will create the Durable Object class automatically.
 
-3. **Add your deployed URL to the README:**
-
 After deployment, note the Worker URL and update this section with it.
 
-**Deployed URL:** [Add your deployed link here after deployment]
+**Deployed URL:** https://cf_ai_paperscout.kyleortzow.workers.dev/
 
 ## Sample Prompts
 
