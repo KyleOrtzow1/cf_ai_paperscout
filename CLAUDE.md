@@ -92,12 +92,12 @@ Tools are defined in `src/tools.ts` using `tool()` from ai-sdk:
 
 - `searchArxiv` - Search arXiv API with filters
 - `summarizePaper` - Generate structured paper summary via LLM
-- `scheduleTask`, `getScheduledTasks`, `cancelScheduledTask` - Task scheduling
-- `getLocalTime` - Example utility tool
+- `savePaper` - Save paper to library with optional tags
+- `listSavedPapers` - List papers from user's library
 
 **Confirmation-required tools** (omit `execute`, implement in `executions` object):
 
-- `getWeatherInformation` - Example requiring user approval
+- `removeSavedPaper` - Remove paper from library (requires confirmation)
 - Pattern: Tool definition lacks `execute`, handler goes in `executions` export
 
 ### Tool Implementation Notes
