@@ -314,10 +314,10 @@ function Chat() {
                               // biome-ignore lint/suspicious/noArrayIndexKey: immutable index
                               <div key={i}>
                                 <Card
-                                  className={`p-3 bg-ob-base-200 max-w-[65ch] ${
+                                  className={`p-3 max-w-[65ch] ${
                                     isUser
-                                      ? ""
-                                      : "border-l-[3px] border-l-accent-academic"
+                                      ? "bg-blue-100"
+                                      : "bg-ob-base-200 border-l-[3px] border-l-accent-academic"
                                   } ${
                                     part.text.startsWith("scheduled message")
                                       ? "border-accent/50"
