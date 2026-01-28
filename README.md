@@ -1,237 +1,330 @@
-# 🤖 Chat Agent Starter Kit
+# PaperScout
 
-![npm i agents command](./npm-agents-banner.svg)
+An AI-powered research assistant for discovering and organizing academic papers from arXiv, built on Cloudflare Workers with Durable Objects and Workers AI.
 
-<a href="https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/agents-starter"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare"/></a>
+> **No API keys required** — PaperScout uses Cloudflare Workers AI for inference, eliminating the need for external LLM services.
 
-A starter template for building AI-powered chat agents using Cloudflare's Agent platform, powered by [`agents`](https://www.npmjs.com/package/agents). This project provides a foundation for creating interactive chat experiences with AI, complete with a modern UI and tool integration capabilities.
+## What is PaperScout?
+
+PaperScout is an interactive research assistant that helps you search arXiv for academic papers, read AI-generated summaries, and build a persistent library of papers you're interested in. Every user gets their own isolated agent instance with full SQLite persistence—your library survives page refreshes and browser sessions.
+
+Ask PaperScout to find papers on a topic, and it'll search arXiv and present results. Request a summary of any paper, and it generates one using Llama 3.3 70B. Save interesting papers to your library with custom tags. Query your library later or remove papers you no longer need.
 
 ## Features
 
-- 💬 Interactive chat interface with AI
-- 🛠️ Built-in tool system with human-in-the-loop confirmation
-- 📅 Advanced task scheduling (one-time, delayed, and recurring via cron)
-- 🌓 Dark/Light theme support
-- ⚡️ Real-time streaming responses
-- 🔄 State management and chat history
-- 🎨 Modern, responsive UI
+- 🔍 **arXiv Search** — Query arXiv with date filters and result limits
+- 📄 **Paper Summaries** — AI-generated summaries (TL;DR, Key Contributions, Limitations) with abstract-only disclaimers
+- 📚 **Persistent Library** — Save papers to your personal library with SQLite backing; data survives page refreshes
+- 🏷️ **Tagging** — Organize papers with custom tags
+- 💬 **Multi-turn Chat** — Natural language interaction with state persistence
+- ⚡ **Streaming Responses** — Real-time response streaming for a snappy UX
+- 🛠️ **Tool-based Interactions** — Confirmation prompts for destructive operations (e.g., removing papers)
+- 🔐 **User Isolation** — Each user gets their own Durable Object instance with no shared state
+
+## Tech Stack
+
+- **Backend:** Cloudflare Workers + Durable Objects (state + SQL persistence)
+- **AI/LLM:** Workers AI (Llama 3.3 70B Instruct FP8 Fast) via ai-sdk
+- **Frontend:** React + Tailwind CSS
+- **API Integration:** arXiv Atom API (no authentication required)
+- **Framework:** Cloudflare Agents SDK
 
 ## Prerequisites
 
-- Cloudflare account
-- OpenAI API key
+- Cloudflare account (free tier supported)
+- Node.js 18+ and npm
+- Git
 
-## Quick Start
+**No OpenAI key or other external API credentials needed** — Workers AI is included with Cloudflare Workers.
 
-1. Create a new project:
+## Local Development
+
+1. **Clone the repository:**
 
 ```bash
-npx create-cloudflare@latest --template cloudflare/agents-starter
+git clone https://github.com/yourusername/cf_ai_paperscout
+cd cf_ai_paperscout
 ```
 
-2. Install dependencies:
+2. **Install dependencies:**
 
 ```bash
 npm install
 ```
 
-3. Set up your environment:
-
-Create a `.dev.vars` file:
-
-```env
-OPENAI_API_KEY=your_openai_api_key
-```
-
-4. Run locally:
+3. **Start the local dev server:**
 
 ```bash
 npm start
 ```
 
-5. Deploy:
+The app will be available at `http://localhost:8787`. Vite will handle hot reloads as you edit files.
+
+**No `.dev.vars` file needed** — Workers AI is configured via the `wrangler.jsonc` binding.
+
+4. **Run tests (optional):**
+
+```bash
+npm test
+```
+
+Tests use `wrangler.test.jsonc` (without AI binding) for CI compatibility.
+
+## Deployment
+
+1. **Authenticate with Cloudflare (first time only):**
+
+```bash
+npx wrangler login
+```
+
+2. **Deploy:**
 
 ```bash
 npm run deploy
 ```
 
+This runs Vite build + Wrangler deploy. The first deployment will create the Durable Object class automatically.
+
+3. **Add your deployed URL to the README:**
+
+After deployment, note the Worker URL and update this section with it.
+
+**Deployed URL:** [Add your deployed link here after deployment]
+
+## Sample Prompts
+
+Try these example queries once the app is running:
+
+1. **Search for recent papers:**
+
+   > "Find 5 recent papers about diffusion transformers"
+
+2. **Get a summary:**
+
+   > "Summarize paper #2"
+
+3. **Save with tags:**
+
+   > "Save #3 with tags: diffusion, transformers, vision"
+
+4. **List your library:**
+
+   > "Show my saved papers"
+
+5. **Query your library:**
+
+   > "What have I saved about transformers?"
+
+6. **Remove from library:**
+
+   > "Remove the first paper from my library"
+
+7. **Search and save in one go:**
+   > "Find papers about stable diffusion published in the last month and save the top 3"
+
+## Architecture
+
+### Agent per User
+
+Each user gets their own `PaperScout` Durable Object instance, providing isolation and persistent state. The agent maintains:
+
+- **Synced State:** Small UI-friendly data (preferences, library preview) synchronized to the frontend
+- **SQL Storage:** Full paper metadata, summaries, and tags in embedded SQLite
+
+### Tool System
+
+PaperScout exposes these AI tools:
+
+| Tool               | Purpose                                             | Auto-execute?            |
+| ------------------ | --------------------------------------------------- | ------------------------ |
+| `searchArxiv`      | Search arXiv with query, filters, and result limits | ✅ Yes                   |
+| `summarizePaper`   | Generate structured summary from abstract           | ✅ Yes                   |
+| `savePaper`        | Add paper to library with tags                      | ✅ Yes                   |
+| `listSavedPapers`  | Query user's saved paper library                    | ✅ Yes                   |
+| `removeSavedPaper` | Remove paper from library                           | ❌ Requires confirmation |
+
+### State Management
+
+**Synced State** (frontend receives):
+
+- User preferences
+- Library preview (most recent saved papers for UI sidebar)
+
+**SQL Storage** (backend only):
+
+- Full `saved_papers` table with arxiv_id, title, authors, abstract, url, tags, saved_at
+- `paper_summaries` cache table to avoid redundant LLM calls
+
+### LLM Integration
+
+- **Model:** Llama 3.3 70B Instruct FP8 Fast via Cloudflare Workers AI
+- **Framework:** ai-sdk with workers-ai-provider
+- **System Prompt:** Emphasizes honesty, citations, and "abstract-only" disclaimers for summaries
+- **Streaming:** `streamText()` with up to 10 agentic reasoning steps
+
+### arXiv Integration
+
+- **API:** arXiv Atom API (no authentication)
+- **Parsing:** Fast XML parser for Atom feed
+- **ID Support:** Both new (`2301.01234v2`) and old (`cs/9901001v1`) arXiv ID formats
+- **Rate Limiting:** Respects arXiv's ~1 request per 3 seconds guideline (not enforced in MVP)
+
 ## Project Structure
 
 ```
+cf_ai_paperscout/
 ├── src/
-│   ├── app.tsx        # Chat UI implementation
-│   ├── server.ts      # Chat agent logic
-│   ├── tools.ts       # Tool definitions
-│   ├── utils.ts       # Helper functions
-│   └── styles.css     # UI styling
+│   ├── server.ts          # PaperScout agent + Worker entry point
+│   ├── app.tsx            # React chat UI
+│   ├── tools.ts           # Tool definitions and auto-execute implementations
+│   ├── utils.ts           # Utility functions (processToolCalls, cleanupMessages)
+│   ├── shared.ts          # Shared types (PaperScoutState)
+│   ├── styles.css         # Tailwind + custom styles
+│   └── lib/
+│       ├── arxiv.ts       # arXiv API client (fetch, parse, normalize IDs)
+│       ├── storage.ts     # Safe localStorage/sessionStorage fallbacks
+│       └── utils.ts       # UI utilities
+├── tests/
+│   ├── arxiv.test.ts      # Unit tests for arXiv library
+│   └── index.test.ts      # Integration tests
+├── public/
+│   └── index.html         # HTML entry point
+├── wrangler.jsonc         # Cloudflare Workers configuration
+├── vite.config.ts         # Vite build configuration
+└── package.json
 ```
 
-## Customization Guide
+## Key Files
 
-### Adding New Tools
+- **`src/server.ts`:** PaperScout agent class (Durable Object), system prompt, and Worker entry point
+- **`src/tools.ts`:** Tool definitions using ai-sdk `tool()` API
+- **`src/app.tsx`:** React component for chat UI and library sidebar
+- **`src/lib/arxiv.ts`:** arXiv API client with ID normalization and XML parsing
 
-Add new tools in `tools.ts` using the tool builder:
+## Testing
 
-```ts
-// Example of a tool that requires confirmation
-const searchDatabase = tool({
-  description: "Search the database for user records",
-  parameters: z.object({
-    query: z.string(),
-    limit: z.number().optional()
-  })
-  // No execute function = requires confirmation
-});
+Run tests with:
 
-// Example of an auto-executing tool
-const getCurrentTime = tool({
-  description: "Get current server time",
-  parameters: z.object({}),
-  execute: async () => new Date().toISOString()
-});
-
-// Scheduling tool implementation
-const scheduleTask = tool({
-  description:
-    "schedule a task to be executed at a later time. 'when' can be a date, a delay in seconds, or a cron pattern.",
-  parameters: z.object({
-    type: z.enum(["scheduled", "delayed", "cron"]),
-    when: z.union([z.number(), z.string()]),
-    payload: z.string()
-  }),
-  execute: async ({ type, when, payload }) => {
-    // ... see the implementation in tools.ts
-  }
-});
+```bash
+npm test
 ```
 
-To handle tool confirmations, add execution functions to the `executions` object:
+Run tests in watch mode:
+
+```bash
+npm test -- --watch
+```
+
+Run a specific test file:
+
+```bash
+npm test -- arxiv.test.ts
+```
+
+Tests use `wrangler.test.jsonc` without the AI binding for CI compatibility.
+
+## Development Workflow
+
+### Adding a New Tool
+
+1. Define the tool in `src/tools.ts` using `tool()` from ai-sdk:
 
 ```typescript
-export const executions = {
-  searchDatabase: async ({
-    query,
-    limit
-  }: {
-    query: string;
-    limit?: number;
-  }) => {
-    // Implementation for when the tool is confirmed
-    const results = await db.search(query, limit);
-    return results;
+const myTool = tool({
+  description: "What this tool does",
+  inputSchema: z.object({
+    param: z.string().describe("Parameter description")
+  }),
+  execute: async ({ param }) => {
+    // Access agent context if needed:
+    // const { agent } = getCurrentAgent<PaperScout>();
+    return result;
   }
-  // Add more execution handlers for other tools that require confirmation
-};
+});
 ```
 
-Tools can be configured in two ways:
+2. Add to the `tools` export.
 
-1. With an `execute` function for automatic execution
-2. Without an `execute` function, requiring confirmation and using the `executions` object to handle the confirmed action. NOTE: The keys in `executions` should match `toolsRequiringConfirmation` in `app.tsx`.
+3. If the tool requires user confirmation, omit the `execute` function and add to the `executions` object in `src/tools.ts`.
 
-### Use a different AI model provider
+### Modifying the System Prompt
 
-The starting [`server.ts`](https://github.com/cloudflare/agents-starter/blob/main/src/server.ts) implementation uses the [`ai-sdk`](https://sdk.vercel.ai/docs/introduction) and the [OpenAI provider](https://sdk.vercel.ai/providers/ai-sdk-providers/openai), but you can use any AI model provider by:
+Edit the system prompt in `src/server.ts` within the `streamText()` call. The prompt defines PaperScout's behavior, capabilities, and response style.
 
-1. Installing an alternative AI provider for the `ai-sdk`, such as the [`workers-ai-provider`](https://sdk.vercel.ai/providers/community-providers/cloudflare-workers-ai) or [`anthropic`](https://sdk.vercel.ai/providers/ai-sdk-providers/anthropic) provider:
-2. Replacing the AI SDK with the [OpenAI SDK](https://github.com/openai/openai-node)
-3. Using the Cloudflare [Workers AI + AI Gateway](https://developers.cloudflare.com/ai-gateway/providers/workersai/#workers-binding) binding API directly
+### Changing the LLM Model
 
-For example, to use the [`workers-ai-provider`](https://sdk.vercel.ai/providers/community-providers/cloudflare-workers-ai), install the package:
+Update the model in two places:
 
-```sh
-npm install workers-ai-provider
+1. `src/server.ts` — Main chat interactions
+2. `src/tools.ts` — `summarizePaper` tool
+
+Change the parameter to `workersai()`:
+
+```typescript
+const model = workersai("@cf/meta/llama-3.3-70b-instruct-fp8-fast");
 ```
 
-Add an `ai` binding to `wrangler.jsonc`:
+See [Cloudflare Workers AI documentation](https://developers.cloudflare.com/workers-ai/) for available models.
+
+## Error Handling
+
+PaperScout implements comprehensive error handling:
+
+- **Storage Fallbacks:** Gracefully falls back from localStorage → sessionStorage → memory if storage is unavailable (e.g., private browsing)
+- **React Error Boundary:** Catches and displays rendering errors with recovery options
+- **Message Send Errors:** Failed messages are restored to the input field with an error notification
+- **AI Binding Validation:** Checks for Workers AI binding at startup and provides clear error messages if misconfigured
+
+## Troubleshooting
+
+### "Workers AI binding not configured"
+
+**Solution:** Ensure `wrangler.jsonc` has the AI binding:
 
 ```jsonc
-// rest of file
-  "ai": {
-    "binding": "AI"
-  }
-// rest of file
+"ai": {
+  "binding": "AI"
+}
 ```
 
-Replace the `@ai-sdk/openai` import and usage with the `workers-ai-provider`:
+Then redeploy with `npm run deploy`.
 
-```diff
-// server.ts
-// Change the imports
-- import { openai } from "@ai-sdk/openai";
-+ import { createWorkersAI } from 'workers-ai-provider';
+### App doesn't work in private browsing
 
-// Create a Workers AI instance
-+ const workersai = createWorkersAI({ binding: env.AI });
+**Solution:** The app now uses safe storage utilities that automatically fall back to sessionStorage or memory. You'll see a warning banner if non-persistent storage is used.
 
-// Use it when calling the streamText method (or other methods)
-// from the ai-sdk
-- const model = openai("gpt-4o-2024-11-20");
-+ const model = workersai("@cf/deepseek-ai/deepseek-r1-distill-qwen-32b")
+### Tests fail with "Workers AI binding not found"
+
+**Solution:** This is expected in CI. Tests use `wrangler.test.jsonc` which doesn't include the AI binding. This is intentional to keep CI fast and avoid auth requirements.
+
+### Connection state stuck on "Connecting..."
+
+**Solution:** Check the browser console for errors. Verify that:
+
+1. Durable Object is configured in `wrangler.jsonc`
+2. Workers AI binding is configured
+3. Try refreshing the page
+
+## Environment Variables
+
+No environment variables are required for local development or deployment. Workers AI uses the binding configured in `wrangler.jsonc`.
+
+## Building for Production
+
+```bash
+npm run build
 ```
 
-Commit your changes and then run the `agents-starter` as per the rest of this README.
-
-### Modifying the UI
-
-The chat interface is built with React and can be customized in `app.tsx`:
-
-- Modify the theme colors in `styles.css`
-- Add new UI components in the chat container
-- Customize message rendering and tool confirmation dialogs
-- Add new controls to the header
-
-### Example Use Cases
-
-1. **Customer Support Agent**
-   - Add tools for:
-     - Ticket creation/lookup
-     - Order status checking
-     - Product recommendations
-     - FAQ database search
-
-2. **Development Assistant**
-   - Integrate tools for:
-     - Code linting
-     - Git operations
-     - Documentation search
-     - Dependency checking
-
-3. **Data Analysis Assistant**
-   - Build tools for:
-     - Database querying
-     - Data visualization
-     - Statistical analysis
-     - Report generation
-
-4. **Personal Productivity Assistant**
-   - Implement tools for:
-     - Task scheduling with flexible timing options
-     - One-time, delayed, and recurring task management
-     - Task tracking with reminders
-     - Email drafting
-     - Note taking
-
-5. **Scheduling Assistant**
-   - Build tools for:
-     - One-time event scheduling using specific dates
-     - Delayed task execution (e.g., "remind me in 30 minutes")
-     - Recurring tasks using cron patterns
-     - Task payload management
-     - Flexible scheduling patterns
-
-Each use case can be implemented by:
-
-1. Adding relevant tools in `tools.ts`
-2. Customizing the UI for specific interactions
-3. Extending the agent's capabilities in `server.ts`
-4. Adding any necessary external API integrations
+This runs Vite build. For deployment, use `npm run deploy` which builds and deploys in one step.
 
 ## Learn More
 
-- [`agents`](https://github.com/cloudflare/agents/blob/main/packages/agents/README.md)
-- [Cloudflare Agents Documentation](https://developers.cloudflare.com/agents/)
-- [Cloudflare Workers Documentation](https://developers.cloudflare.com/workers/)
+- [Cloudflare Agents SDK](https://developers.cloudflare.com/agents/)
+- [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/)
+- [Cloudflare Durable Objects](https://developers.cloudflare.com/durable-objects/)
+- [ai-sdk Documentation](https://sdk.vercel.ai/)
+- [arXiv API Documentation](https://info.arxiv.org/help/api/)
 
 ## License
 

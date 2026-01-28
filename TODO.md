@@ -42,12 +42,12 @@
 
 ## G) Docs + submission readiness
 
-- [ ] 20. Write `README.md` with:
-  - [ ] Local run instructions
-  - [ ] Deploy instructions
-  - [ ] Sample prompts
-  - [ ] Architecture notes
-- [ ] 21. Write `PROMPTS.md` (copy/paste prompts you used during coding)
+- [x] 20. Write `README.md` with:
+  - [x] Local run instructions
+  - [x] Deploy instructions
+  - [x] Sample prompts
+  - [x] Architecture notes
+- [x] 21. Write `PROMPTS.md` (copy/paste prompts you used during coding)
 - [ ] 22. Add a short demo GIF (optional, but helps a lot)
 
 ## H) Deploy
