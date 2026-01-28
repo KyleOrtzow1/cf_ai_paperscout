@@ -1,1 +1,0 @@
-please read the full MVP_OUTLINE and the full TODO to completlty undersand the project and its goals so that we can begin working on the next step. after that please create a new branch for us to work on to implement the next steps.
