@@ -144,49 +144,6 @@
   --color-ob-focus: var(--color-blue-400);
 }
 
-.dark {
-  /* Component colors */
-
-  /* Base colors */
-  --color-ob-base-100: var(--color-neutral-950);
-  --color-ob-base-200: var(--color-neutral-900);
-  --color-ob-base-300: var(--color-neutral-850);
-  --color-ob-base-400: var(--color-neutral-800);
-  --color-ob-base-500: var(--color-neutral-750);
-  --color-ob-base-1000: var(--color-neutral-50);
-
-  --color-ob-border: var(--color-neutral-800);
-  --color-ob-border-active: var(--color-neutral-700);
-
-  /* Text colors */
-  --text-color-ob-base-100: var(--color-neutral-500);
-  --text-color-ob-base-200: var(--color-neutral-400);
-  --text-color-ob-base-300: var(--color-neutral-50);
-  --text-color-ob-destructive: var(--color-red-400);
-  --text-color-ob-inverted: var(--color-neutral-900);
-
-  /* ob-btn */
-  --color-ob-btn-primary-bg: var(--color-neutral-300);
-  --color-ob-btn-primary-bg-hover: var(--color-neutral-250);
-  --color-ob-btn-primary-border: var(--color-neutral-100);
-  --color-ob-btn-primary-border-hover: var(--color-white);
-
-  --color-ob-btn-secondary-bg: var(--color-neutral-900);
-  --color-ob-btn-secondary-bg-hover: var(--color-neutral-850);
-  --color-ob-btn-secondary-border: var(--color-neutral-800);
-  --color-ob-btn-secondary-border-hover: var(--color-neutral-750);
-
-  --color-ob-btn-ghost-bg-hover: var(--color-neutral-850);
-
-  --color-ob-btn-destructive-bg: var(--color-red-800);
-  --color-ob-btn-destructive-bg-hover: var(--color-red-750);
-  --color-ob-btn-destructive-border: var(--color-red-700);
-  --color-ob-btn-destructive-border-hover: var(--color-red-600);
-
-  /* Focus colors */
-  --color-ob-focus: var(--color-blue-800);
-}
-
 .btn {
   &.btn-primary {
     @apply border-ob-btn-primary-border bg-ob-btn-primary-bg text-ob-base-300 shadow-xs;
