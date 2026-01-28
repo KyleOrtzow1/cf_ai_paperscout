@@ -10,7 +10,6 @@ import type { tools } from "./tools";
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
 import { Avatar } from "@/components/avatar/Avatar";
-import { Toggle } from "@/components/toggle/Toggle";
 import { Textarea } from "@/components/textarea/Textarea";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
@@ -26,10 +25,7 @@ import type { PaperScoutState } from "@/shared";
 
 // Icon imports
 import {
-  BugIcon,
-  MoonIcon,
   RobotIcon,
-  SunIcon,
   TrashIcon,
   PaperPlaneTiltIcon,
   StopIcon,
@@ -41,12 +37,6 @@ import {
 const toolsRequiringConfirmation: (keyof typeof tools)[] = ["removeSavedPaper"];
 
 function Chat() {
-  const [theme, setTheme] = useState<"dark" | "light">(() => {
-    // Safe theme retrieval with fallback to light
-    const { value } = safeGetItem("theme", "light");
-    return (value as "dark" | "light") || "light";
-  });
-  const [showDebug, setShowDebug] = useState(false);
   const [textareaHeight, setTextareaHeight] = useState("auto");
   const [sendError, setSendError] = useState<string | null>(null);
   const [connectionState, setConnectionState] = useState<
@@ -63,29 +53,10 @@ function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
-  useEffect(() => {
-    // Apply theme class on mount and when theme changes
-    if (theme === "dark") {
-      document.documentElement.classList.add("dark");
-      document.documentElement.classList.remove("light");
-    } else {
-      document.documentElement.classList.remove("dark");
-      document.documentElement.classList.add("light");
-    }
-
-    // Save theme preference with safe storage
-    safeSetItem("theme", theme);
-  }, [theme]);
-
   // Scroll to bottom on mount
   useEffect(() => {
     scrollToBottom();
   }, [scrollToBottom]);
-
-  const toggleTheme = () => {
-    const newTheme = theme === "dark" ? "light" : "dark";
-    setTheme(newTheme);
-  };
 
   // Generate or retrieve stable user ID for agent isolation
   const [userId] = useState<string>(() => {
@@ -207,7 +178,7 @@ function Chat() {
   };
 
   return (
-    <div className="h-screen w-full flex justify-center items-center bg-ob-base-100 overflow-hidden">
+    <div className="h-screen w-full flex flex-col bg-ob-base-100 overflow-hidden">
       {/* Library Panel */}
       <LibraryPanel
         isOpen={isPanelOpen}
@@ -216,9 +187,9 @@ function Chat() {
         onSendMessage={handlePanelMessage}
       />
 
-      {/* Main Chat Area */}
-      <div className="w-full max-w-[900px] flex flex-col h-full overflow-y-auto">
-        <div className="px-4 h-[60px] border-b-2 border-ob-border bg-ob-base-200 flex items-center gap-3 sticky top-0 z-10">
+      {/* Header Bar - Full Width */}
+      <div className="w-full h-[60px] border-b-2 border-ob-border bg-ob-base-200 flex items-center justify-center z-10">
+        <div className="w-full max-w-[900px] flex items-center gap-3 px-4">
           <div className="flex items-center justify-center h-8 w-8">
             <svg
               width="28px"
@@ -241,15 +212,6 @@ function Chat() {
             <h2 className="font-semibold text-base font-serif">PaperScout</h2>
           </div>
 
-          <div className="flex items-center gap-2 mr-2">
-            <BugIcon size={16} />
-            <Toggle
-              toggled={showDebug}
-              aria-label="Toggle debug mode"
-              onClick={() => setShowDebug((prev) => !prev)}
-            />
-          </div>
-
           <Button
             variant="ghost"
             size="md"
@@ -266,273 +228,268 @@ function Chat() {
             size="md"
             shape="square"
             className="rounded-full h-9 w-9"
-            onClick={toggleTheme}
-          >
-            {theme === "dark" ? <SunIcon size={20} /> : <MoonIcon size={20} />}
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="md"
-            shape="square"
-            className="rounded-full h-9 w-9"
             onClick={clearHistory}
           >
             <TrashIcon size={20} />
           </Button>
         </div>
+      </div>
 
-        {/* Storage Warning Banner */}
-        {storageMode !== "persistent" && (
-          <div className="px-4 py-2 bg-yellow-50 dark:bg-yellow-950/20 border-b border-yellow-200 dark:border-yellow-900">
-            <p className="text-xs text-yellow-700 dark:text-yellow-400 text-center">
-              {storageMode === "session"
-                ? "Settings will be lost when you close this tab (private browsing detected)"
-                : "Settings will be lost when you refresh (storage unavailable)"}
-            </p>
-          </div>
-        )}
-
-        {/* Messages */}
-        <div className="flex-1 px-4 py-8 space-y-6 pb-4">
-          {agentMessages.length === 0 && (
-            <div className="h-full flex items-center justify-center">
-              <Card className="p-6 max-w-md mx-auto bg-ob-base-200">
-                <div className="text-center space-y-4">
-                  <div className="bg-[#F48120]/10 text-[#F48120] rounded-full p-3 inline-flex">
-                    <RobotIcon size={24} />
-                  </div>
-                  <h3 className="font-semibold text-lg font-serif">
-                    Welcome to PaperScout
-                  </h3>
-                  <p className="text-ob-base-200 text-sm font-sans">
-                    Start a conversation with your AI assistant. Try asking
-                    about:
-                  </p>
-                  <ul className="text-sm text-left space-y-2 font-serif">
-                    <li className="flex items-center gap-2">
-                      <span className="text-[#F48120]">•</span>
-                      <span>Searching for papers on any topic</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="text-[#F48120]">•</span>
-                      <span>Summarizing papers and saving to your library</span>
-                    </li>
-                  </ul>
-                </div>
-              </Card>
+      {/* Main Chat Area */}
+      <div className="flex-1 w-full flex justify-center overflow-y-auto">
+        <div className="w-full max-w-[900px] flex flex-col h-full">
+          {/* Storage Warning Banner */}
+          {storageMode !== "persistent" && (
+            <div className="px-4 py-2 bg-yellow-50 dark:bg-yellow-950/20 border-b border-yellow-200 dark:border-yellow-900">
+              <p className="text-xs text-yellow-700 dark:text-yellow-400 text-center">
+                {storageMode === "session"
+                  ? "Settings will be lost when you close this tab (private browsing detected)"
+                  : "Settings will be lost when you refresh (storage unavailable)"}
+              </p>
             </div>
           )}
 
-          {agentMessages.map((m, index) => {
-            const isUser = m.role === "user";
-            const showAvatar =
-              index === 0 || agentMessages[index - 1]?.role !== m.role;
+          {/* Messages */}
+          <div className="flex-1 px-4 py-8 space-y-6 pb-4">
+            {agentMessages.length === 0 && (
+              <div className="h-full flex items-center justify-center">
+                <Card className="p-6 max-w-md mx-auto bg-ob-base-200">
+                  <div className="text-center space-y-4">
+                    <div className="bg-[#F48120]/10 text-[#F48120] rounded-full p-3 inline-flex">
+                      <RobotIcon size={24} />
+                    </div>
+                    <h3 className="font-semibold text-lg font-serif">
+                      Welcome to PaperScout
+                    </h3>
+                    <p className="text-ob-base-200 text-sm font-sans">
+                      Start a conversation with your AI assistant. Try asking
+                      about:
+                    </p>
+                    <ul className="text-sm text-left space-y-2 font-serif">
+                      <li className="flex items-center gap-2">
+                        <span className="text-[#F48120]">•</span>
+                        <span>Searching for papers on any topic</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <span className="text-[#F48120]">•</span>
+                        <span>
+                          Summarizing papers and saving to your library
+                        </span>
+                      </li>
+                    </ul>
+                  </div>
+                </Card>
+              </div>
+            )}
 
-            return (
-              <div key={m.id}>
-                {showDebug && (
-                  <pre className="text-xs text-muted-foreground overflow-scroll">
-                    {JSON.stringify(m, null, 2)}
-                  </pre>
-                )}
-                <div
-                  className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-                >
+            {agentMessages.map((m, index) => {
+              const isUser = m.role === "user";
+              const showAvatar =
+                index === 0 || agentMessages[index - 1]?.role !== m.role;
+
+              return (
+                <div key={m.id}>
                   <div
-                    className={`flex gap-2 max-w-[85%] ${
-                      isUser ? "flex-row-reverse" : "flex-row"
-                    }`}
+                    className={`flex ${isUser ? "justify-end" : "justify-start"}`}
                   >
-                    {showAvatar && !isUser ? (
-                      <Avatar username={"AI"} className="shrink-0" />
-                    ) : (
-                      !isUser && <div className="w-8" />
-                    )}
+                    <div
+                      className={`flex gap-2 max-w-[85%] ${
+                        isUser ? "flex-row-reverse" : "flex-row"
+                      }`}
+                    >
+                      {showAvatar && !isUser ? (
+                        <Avatar username={"AI"} className="shrink-0" />
+                      ) : (
+                        !isUser && <div className="w-8" />
+                      )}
 
-                    <div>
                       <div>
-                        {m.parts?.map((part, i) => {
-                          if (part.type === "text") {
-                            // Skip rendering empty text parts
-                            if (!part.text.trim()) {
-                              return null;
+                        <div>
+                          {m.parts?.map((part, i) => {
+                            if (part.type === "text") {
+                              // Skip rendering empty text parts
+                              if (!part.text.trim()) {
+                                return null;
+                              }
+
+                              return (
+                                // biome-ignore lint/suspicious/noArrayIndexKey: immutable index
+                                <div key={i}>
+                                  <Card
+                                    className={`p-3 max-w-[65ch] ${
+                                      isUser
+                                        ? "bg-blue-100"
+                                        : "bg-ob-base-200 border-l-[3px] border-l-accent-academic"
+                                    } ${
+                                      part.text.startsWith("scheduled message")
+                                        ? "border-accent/50"
+                                        : ""
+                                    } relative`}
+                                  >
+                                    {part.text.startsWith(
+                                      "scheduled message"
+                                    ) && (
+                                      <span className="absolute -top-3 -left-2 text-base">
+                                        🕒
+                                      </span>
+                                    )}
+                                    <div className="font-serif">
+                                      <MemoizedMarkdown
+                                        id={`${m.id}-${i}`}
+                                        content={part.text.replace(
+                                          /^scheduled message: /,
+                                          ""
+                                        )}
+                                      />
+                                    </div>
+                                  </Card>
+                                  <p
+                                    className={`text-xs text-ob-base-100 mt-1 font-sans ${
+                                      isUser ? "text-right" : "text-left"
+                                    }`}
+                                  >
+                                    {formatTime(
+                                      m.metadata?.createdAt
+                                        ? new Date(m.metadata.createdAt)
+                                        : new Date()
+                                    )}
+                                  </p>
+                                </div>
+                              );
                             }
 
-                            return (
-                              // biome-ignore lint/suspicious/noArrayIndexKey: immutable index
-                              <div key={i}>
-                                <Card
-                                  className={`p-3 bg-ob-base-200 max-w-[65ch] ${
-                                    isUser
-                                      ? ""
-                                      : "border-l-[3px] border-l-accent-academic"
-                                  } ${
-                                    part.text.startsWith("scheduled message")
-                                      ? "border-accent/50"
-                                      : ""
-                                  } relative`}
-                                >
-                                  {part.text.startsWith(
-                                    "scheduled message"
-                                  ) && (
-                                    <span className="absolute -top-3 -left-2 text-base">
-                                      🕒
-                                    </span>
-                                  )}
-                                  <div className="font-serif">
-                                    <MemoizedMarkdown
-                                      id={`${m.id}-${i}`}
-                                      content={part.text.replace(
-                                        /^scheduled message: /,
-                                        ""
-                                      )}
-                                    />
-                                  </div>
-                                </Card>
-                                <p
-                                  className={`text-xs text-ob-base-100 mt-1 font-sans ${
-                                    isUser ? "text-right" : "text-left"
-                                  }`}
-                                >
-                                  {formatTime(
-                                    m.metadata?.createdAt
-                                      ? new Date(m.metadata.createdAt)
-                                      : new Date()
-                                  )}
-                                </p>
-                              </div>
-                            );
-                          }
+                            if (
+                              isStaticToolUIPart(part) &&
+                              m.role === "assistant"
+                            ) {
+                              const toolCallId = part.toolCallId;
+                              const toolName = part.type.replace("tool-", "");
+                              const needsConfirmation =
+                                toolsRequiringConfirmation.includes(
+                                  toolName as keyof typeof tools
+                                );
 
-                          if (
-                            isStaticToolUIPart(part) &&
-                            m.role === "assistant"
-                          ) {
-                            const toolCallId = part.toolCallId;
-                            const toolName = part.type.replace("tool-", "");
-                            const needsConfirmation =
-                              toolsRequiringConfirmation.includes(
-                                toolName as keyof typeof tools
+                              return (
+                                <ToolInvocationCard
+                                  // biome-ignore lint/suspicious/noArrayIndexKey: using index is safe here as the array is static
+                                  key={`${toolCallId}-${i}`}
+                                  toolUIPart={part}
+                                  toolCallId={toolCallId}
+                                  needsConfirmation={needsConfirmation}
+                                  onSubmit={({ toolCallId, result }) => {
+                                    addToolResult({
+                                      tool: part.type.replace("tool-", ""),
+                                      toolCallId,
+                                      output: result
+                                    });
+                                  }}
+                                  addToolResult={(toolCallId, result) => {
+                                    addToolResult({
+                                      tool: part.type.replace("tool-", ""),
+                                      toolCallId,
+                                      output: result
+                                    });
+                                  }}
+                                />
                               );
-
-                            return (
-                              <ToolInvocationCard
-                                // biome-ignore lint/suspicious/noArrayIndexKey: using index is safe here as the array is static
-                                key={`${toolCallId}-${i}`}
-                                toolUIPart={part}
-                                toolCallId={toolCallId}
-                                needsConfirmation={needsConfirmation}
-                                onSubmit={({ toolCallId, result }) => {
-                                  addToolResult({
-                                    tool: part.type.replace("tool-", ""),
-                                    toolCallId,
-                                    output: result
-                                  });
-                                }}
-                                addToolResult={(toolCallId, result) => {
-                                  addToolResult({
-                                    tool: part.type.replace("tool-", ""),
-                                    toolCallId,
-                                    output: result
-                                  });
-                                }}
-                              />
-                            );
-                          }
-                          return null;
-                        })}
+                            }
+                            return null;
+                          })}
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-          <div ref={messagesEndRef} />
-        </div>
+              );
+            })}
+            <div ref={messagesEndRef} />
+          </div>
 
-        {/* Input Area */}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleAgentSubmit(e, {
-              annotations: {
-                hello: "world"
-              }
-            });
-            setTextareaHeight("auto"); // Reset height after submission
-          }}
-          className="p-3 bg-ob-base-100 sticky bottom-0 z-10"
-        >
-          <div className="flex items-center gap-2">
-            <div className="flex-1 relative">
-              {sendError && (
-                <ErrorNotification
-                  message={sendError}
-                  onDismiss={() => setSendError(null)}
-                />
-              )}
-              <Textarea
-                disabled={
-                  pendingToolCallConfirmation || connectionState !== "connected"
+          {/* Input Area */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleAgentSubmit(e, {
+                annotations: {
+                  hello: "world"
                 }
-                placeholder={
-                  pendingToolCallConfirmation
-                    ? "Please respond to the tool confirmation above..."
-                    : connectionState === "connecting"
-                      ? "Connecting to agent..."
-                      : connectionState === "error"
-                        ? "Connection error. Please refresh."
-                        : "Send a message..."
-                }
-                className="flex w-full font-serif px-3 py-2 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none text-base! pb-10"
-                value={agentInput}
-                onChange={(e) => {
-                  handleAgentInputChange(e);
-                  // Auto-resize the textarea
-                  e.target.style.height = "auto";
-                  e.target.style.height = `${e.target.scrollHeight}px`;
-                  setTextareaHeight(`${e.target.scrollHeight}px`);
-                }}
-                onKeyDown={(e) => {
-                  if (
-                    e.key === "Enter" &&
-                    !e.shiftKey &&
-                    !e.nativeEvent.isComposing
-                  ) {
-                    e.preventDefault();
-                    handleAgentSubmit(e as unknown as React.FormEvent);
-                    setTextareaHeight("auto"); // Reset height on Enter submission
-                  }
-                }}
-                rows={2}
-                style={{ height: textareaHeight }}
-              />
-              <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
-                {status === "submitted" || status === "streaming" ? (
-                  <button
-                    type="button"
-                    onClick={stop}
-                    className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
-                    aria-label="Stop generation"
-                  >
-                    <StopIcon size={16} />
-                  </button>
-                ) : (
-                  <button
-                    type="submit"
-                    className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
-                    disabled={pendingToolCallConfirmation || !agentInput.trim()}
-                    aria-label="Send message"
-                  >
-                    <PaperPlaneTiltIcon size={16} />
-                  </button>
+              });
+              setTextareaHeight("auto"); // Reset height after submission
+            }}
+            className="p-3 bg-ob-base-100 sticky bottom-0 z-10"
+          >
+            <div className="flex items-center gap-2">
+              <div className="flex-1 relative">
+                {sendError && (
+                  <ErrorNotification
+                    message={sendError}
+                    onDismiss={() => setSendError(null)}
+                  />
                 )}
+                <Textarea
+                  disabled={
+                    pendingToolCallConfirmation ||
+                    connectionState !== "connected"
+                  }
+                  placeholder={
+                    pendingToolCallConfirmation
+                      ? "Please respond to the tool confirmation above..."
+                      : connectionState === "connecting"
+                        ? "Connecting to agent..."
+                        : connectionState === "error"
+                          ? "Connection error. Please refresh."
+                          : "Send a message..."
+                  }
+                  className="flex w-full font-serif px-3 py-2 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none text-base! pb-10"
+                  value={agentInput}
+                  onChange={(e) => {
+                    handleAgentInputChange(e);
+                    // Auto-resize the textarea
+                    e.target.style.height = "auto";
+                    e.target.style.height = `${e.target.scrollHeight}px`;
+                    setTextareaHeight(`${e.target.scrollHeight}px`);
+                  }}
+                  onKeyDown={(e) => {
+                    if (
+                      e.key === "Enter" &&
+                      !e.shiftKey &&
+                      !e.nativeEvent.isComposing
+                    ) {
+                      e.preventDefault();
+                      handleAgentSubmit(e as unknown as React.FormEvent);
+                      setTextareaHeight("auto"); // Reset height on Enter submission
+                    }
+                  }}
+                  rows={2}
+                  style={{ height: textareaHeight }}
+                />
+                <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
+                  {status === "submitted" || status === "streaming" ? (
+                    <button
+                      type="button"
+                      onClick={stop}
+                      className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
+                      aria-label="Stop generation"
+                    >
+                      <StopIcon size={16} />
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      className="inline-flex items-center cursor-pointer justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full p-1.5 h-fit border border-neutral-200 dark:border-neutral-800"
+                      disabled={
+                        pendingToolCallConfirmation || !agentInput.trim()
+                      }
+                      aria-label="Send message"
+                    >
+                      <PaperPlaneTiltIcon size={16} />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
   );

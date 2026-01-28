@@ -160,7 +160,7 @@ export const LibraryPanel = ({
       </div>
 
       {/* Paper list or empty state */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
         {papers.length === 0 ? (
           <div className="h-full flex items-center justify-center">
             <p className="text-sm text-ob-base-100 text-center font-sans">
@@ -183,44 +183,38 @@ export const LibraryPanel = ({
               >
                 {/* Paper Header - Always visible */}
                 <button
-                  onClick={() => shouldTruncate && toggleExpand(paper.arxivId)}
-                  className={`w-full p-3 text-left flex items-start gap-2 ${
-                    shouldTruncate
-                      ? "hover:bg-ob-base-300 cursor-pointer"
-                      : "cursor-default"
-                  }`}
+                  onClick={() => toggleExpand(paper.arxivId)}
+                  className="w-full p-3 text-left flex items-start gap-2 hover:bg-ob-base-300 cursor-pointer"
                   type="button"
                 >
-                  {shouldTruncate && (
-                    <span className="mt-0.5 text-ob-base-100 flex-shrink-0">
-                      {isExpanded ? (
-                        <CaretDownIcon size={16} />
-                      ) : (
-                        <CaretRightIcon size={16} />
-                      )}
-                    </span>
-                  )}
+                  <span className="mt-0.5 text-ob-base-100 flex-shrink-0">
+                    {isExpanded ? (
+                      <CaretDownIcon size={16} />
+                    ) : (
+                      <CaretRightIcon size={16} />
+                    )}
+                  </span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium font-serif">
                       {displayTitle}
                     </p>
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <span className="text-xs text-ob-base-100 font-sans">
+                    <div className="flex items-center gap-2 mt-1 flex-nowrap overflow-hidden">
+                      <span className="text-xs text-ob-base-100 font-sans whitespace-nowrap">
                         {formatDate(paper.savedAt)}
                       </span>
                       {/* Show tags preview when collapsed */}
                       {!isExpanded && paper.tags.length > 0 && (
-                        <div className="flex gap-1">
+                        <div className="flex gap-1 flex-nowrap overflow-hidden">
                           {paper.tags.slice(0, 2).map((tag) => (
                             <span
                               key={tag}
-                              className="text-xs px-1.5 py-0.5 border border-accent-academic bg-accent-bg text-accent-academic font-sans"
+                              className="text-xs px-1.5 py-0.5 border border-accent-academic bg-accent-bg text-accent-academic font-sans whitespace-nowrap overflow-hidden text-ellipsis min-w-0"
                             >
                               {tag}
                             </span>
                           ))}
                           {paper.tags.length > 2 && (
-                            <span className="text-xs text-ob-base-100 font-sans">
+                            <span className="text-xs text-ob-base-100 font-sans whitespace-nowrap">
                               +{paper.tags.length - 2}
                             </span>
                           )}
@@ -235,11 +229,11 @@ export const LibraryPanel = ({
                   <div className="px-3 pb-3 space-y-2 border-t border-ob-border pt-2">
                     {/* All tags when expanded */}
                     {paper.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex gap-1 overflow-x-auto">
                         {paper.tags.map((tag) => (
                           <span
                             key={tag}
-                            className="text-xs px-1.5 py-0.5 border border-accent-academic bg-accent-bg text-accent-academic font-sans"
+                            className="text-xs px-1.5 py-0.5 border border-accent-academic bg-accent-bg text-accent-academic font-sans whitespace-nowrap flex-shrink-0"
                           >
                             {tag}
                           </span>
