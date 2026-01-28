@@ -7,16 +7,14 @@
       name="description"
       content="AI-powered chat agent built with Cloudflare Agents"
     />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#FAFAF8" />
 
     <title>AI Chat Agent</title>
 
     <script>
       document.documentElement.classList.toggle(
         "dark",
-        localStorage.theme === "dark" ||
-          (!("theme" in localStorage) &&
-            window.matchMedia("(prefers-color-scheme: dark)").matches)
+        localStorage.theme === "dark"
       );
     </script>
 
@@ -26,6 +24,10 @@
     <!-- Preload fonts if any -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
 
     <!-- Prevent flash of unstyled content -->
     <style>

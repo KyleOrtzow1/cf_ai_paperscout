@@ -35,12 +35,21 @@
   --text-sm: 12px;
   --text-sm--line-height: calc(1 / 0.75);
 
-  --text-base: 14px;
-  --text-base--line-height: calc(1.25 / 0.875);
+  --text-base: 15px;
+  --text-base--line-height: 1.7;
+
+  /* Typography */
+  --font-family-serif: "Lora", "Crimson Text", Georgia, serif;
+  --font-family-sans: Inter, system-ui, sans-serif;
+  --line-length-optimal: 65ch;
+
+  --font-serif: var(--font-family-serif);
+  --font-sans: var(--font-family-sans);
 
   /* Easings & transitions */
-  --ease-bounce: cubic-bezier(0.2, 0, 0, 1.5);
-  --default-transition-duration: 100ms /* snappier than default 150ms */;
+  --ease-bounce: linear;
+  --default-transition-duration: 0ms;
+  --interaction-transition: 50ms;
 
   /* Animation */
   --animate-refresh: refresh 0.5s ease-in-out infinite;
@@ -73,36 +82,56 @@
   --color-blue-400: oklch(0.707 0.165 254.624);
   --color-blue-800: oklch(0.424 0.199 265.638);
 
+  /* Academic Light Mode Colors */
+  --color-paper-white: #fafaf8;
+  --color-card-white: #ffffff;
+  --color-input-bg: #fcfcfb;
+
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #4a4a4a;
+  --color-text-tertiary: #6b6b6b;
+
+  --color-border-light: #d4d4d4;
+  --color-border-medium: #a0a0a0;
+  --color-border-dark: #707070;
+
+  --color-accent-academic: #b8651b;
+  --color-accent-hover: #9b5416;
+  --color-accent-bg: #f5ede5;
+
+  --color-success-academic: #2d6a2c;
+  --color-error-academic: #a52a2a;
+
   /* Component colors */
 
   /* Base colors */
-  --color-ob-base-100: var(--color-white);
-  --color-ob-base-200: var(--color-neutral-50);
-  --color-ob-base-300: var(--color-neutral-100);
-  --color-ob-base-400: var(--color-neutral-200);
-  --color-ob-base-500: var(--color-neutral-300);
-  --color-ob-base-1000: var(--color-neutral-900);
+  --color-ob-base-100: var(--color-paper-white);
+  --color-ob-base-200: var(--color-card-white);
+  --color-ob-base-300: var(--color-input-bg);
+  --color-ob-base-400: var(--color-border-light);
+  --color-ob-base-500: var(--color-border-medium);
+  --color-ob-base-1000: var(--color-text-primary);
 
-  --color-ob-border: var(--color-neutral-200);
-  --color-ob-border-active: var(--color-neutral-400);
+  --color-ob-border: var(--color-border-light);
+  --color-ob-border-active: var(--color-border-dark);
 
   /* Text colors */
-  --text-color-ob-base-100: var(--color-neutral-500);
-  --text-color-ob-base-200: var(--color-neutral-600);
-  --text-color-ob-base-300: var(--color-neutral-900);
-  --text-color-ob-destructive: var(--color-red-600);
+  --text-color-ob-base-100: var(--color-text-tertiary);
+  --text-color-ob-base-200: var(--color-text-secondary);
+  --text-color-ob-base-300: var(--color-text-primary);
+  --text-color-ob-destructive: var(--color-error-academic);
   --text-color-ob-inverted: var(--color-white);
 
   /* ob-btn */
-  --color-ob-btn-primary-bg: var(--color-neutral-750);
-  --color-ob-btn-primary-bg-hover: var(--color-neutral-850);
-  --color-ob-btn-primary-border: var(--color-neutral-500);
-  --color-ob-btn-primary-border-hover: var(--color-neutral-600);
+  --color-ob-btn-primary-bg: var(--color-card-white);
+  --color-ob-btn-primary-bg-hover: var(--color-card-white);
+  --color-ob-btn-primary-border: var(--color-text-primary);
+  --color-ob-btn-primary-border-hover: var(--color-accent-academic);
 
-  --color-ob-btn-secondary-bg: var(--color-white);
-  --color-ob-btn-secondary-bg-hover: var(--color-neutral-50);
-  --color-ob-btn-secondary-border: var(--color-neutral-200);
-  --color-ob-btn-secondary-border-hover: var(--color-neutral-300);
+  --color-ob-btn-secondary-bg: var(--color-card-white);
+  --color-ob-btn-secondary-bg-hover: var(--color-input-bg);
+  --color-ob-btn-secondary-border: var(--color-border-light);
+  --color-ob-btn-secondary-border-hover: var(--color-border-medium);
 
   --color-ob-btn-ghost-bg-hover: var(--color-neutral-150);
 
@@ -160,7 +189,7 @@
 
 .btn {
   &.btn-primary {
-    @apply border-ob-btn-primary-border bg-ob-btn-primary-bg text-ob-inverted shadow-xs;
+    @apply border-ob-btn-primary-border bg-ob-btn-primary-bg text-ob-base-300 shadow-xs;
 
     @variant interactive {
       @apply not-disabled:hover:border-ob-btn-primary-border-hover not-disabled:hover:bg-ob-btn-primary-bg-hover;
@@ -226,7 +255,7 @@
 
 /* Use size variants for elements that need to match certain heights */
 .add-size-sm {
-  @apply h-6.5 rounded px-2 text-sm;
+  @apply h-6.5 px-2 text-sm;
 
   @variant square {
     @apply flex size-6.5 items-center justify-center px-0;
@@ -238,7 +267,7 @@
 }
 
 .add-size-md {
-  @apply h-8 rounded-md px-2.5 text-base;
+  @apply h-8 px-2.5 text-base;
 
   @variant square {
     @apply flex size-8 items-center justify-center px-0;
@@ -250,7 +279,7 @@
 }
 
 .add-size-base {
-  @apply h-9 rounded-md px-3 text-base;
+  @apply h-9 px-3 text-base;
 
   @variant square {
     @apply flex size-9 items-center justify-center px-0;
@@ -258,31 +287,6 @@
 
   @variant circular {
     @apply flex size-9 items-center justify-center rounded-full px-0;
-  }
-}
-
-/* Database card animation */
-.db-card {
-  animation: db-card-animation 3s linear infinite;
-  animation-play-state: paused; /* pause while group is not hovered */
-  stroke-dasharray: 100; /* length of each dash */
-
-  &:is(:where(.group):hover *) {
-    @media (hover: hover) {
-      animation-play-state: running; /* play while group is hovered */
-    }
-  }
-}
-
-@keyframes db-card-animation {
-  0% {
-    stroke-dashoffset: -200;
-  }
-  50% {
-    stroke-dashoffset: 0;
-  }
-  100% {
-    stroke-dashoffset: 200;
   }
 }
 
@@ -296,18 +300,21 @@
   filter: url(#ripple);
 }
 
-.float {
-  animation: float 5s linear infinite alternate;
-}
-
-@keyframes float {
-  to {
-    transform: translate(5px, 15px);
-  }
-}
-
 @keyframes refresh {
   to {
-    transform: rotate(360deg) scale(0.9);
+    transform: rotate(360deg);
   }
+}
+
+/* Academic utility classes */
+.border-academic-light {
+  border: 1px solid var(--color-border-light);
+}
+
+.border-academic-medium {
+  border: 1px solid var(--color-border-medium);
+}
+
+.border-academic-heavy {
+  border: 2px solid var(--color-border-dark);
 }

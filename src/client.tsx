@@ -7,7 +7,7 @@ const root = createRoot(document.getElementById("app")!);
 
 root.render(
   <Providers>
-    <div className="bg-neutral-50 text-base text-neutral-900 antialiased transition-colors selection:bg-blue-700 selection:text-white dark:bg-neutral-950 dark:text-neutral-100">
+    <div className="bg-ob-base-100 text-base text-ob-base-300 antialiased selection:bg-blue-700 selection:text-white font-serif">
       <App />
     </div>
   </Providers>
