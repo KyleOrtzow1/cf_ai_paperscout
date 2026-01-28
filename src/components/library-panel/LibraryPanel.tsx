@@ -33,22 +33,6 @@ export const LibraryPanel = ({
     onCloseRef.current = onClose;
   }, [onClose]);
 
-  // Prevent body overflow when panel is open (mobile overlay)
-  useEffect(() => {
-    if (isOpen) {
-      // Only prevent body scroll on mobile where panel is an overlay
-      const isMobile = window.innerWidth < 1024; // lg breakpoint
-      if (isMobile) {
-        document.body.style.overflow = "hidden";
-      }
-    } else {
-      document.body.style.overflow = "";
-    }
-
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [isOpen]);
 
   // Focus trap and keyboard navigation
   useEffect(() => {
@@ -148,35 +132,22 @@ export const LibraryPanel = ({
     );
   };
 
-  if (!isOpen) return null;
-
   return (
-    <>
-      {/* Overlay for mobile */}
-      <div
-        className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-
-      {/* Panel */}
-      <div
-        ref={panelRef}
-        className={`
-        w-80 flex-shrink-0 border-r border-neutral-300 dark:border-neutral-800
-        bg-neutral-50 dark:bg-neutral-900 flex flex-col
-        transform transition-transform duration-300 ease-in-out
-        lg:static lg:translate-x-0 lg:inset-auto lg:z-auto
-        fixed inset-y-0 left-0 z-50
-        ${isOpen ? "translate-x-0" : "-translate-x-full lg:hidden"}
+    <div
+      ref={panelRef}
+      className={`
+        w-[320px] border-r-2 border-ob-border
+        bg-ob-base-100 flex flex-col
+        fixed inset-y-0 left-0 z-50 transition-transform duration-300
+        ${isOpen ? "translate-x-0" : "-translate-x-full"}
       `}
-        tabIndex={-1}
-      >
+      tabIndex={-1}
+    >
         {/* Header */}
-        <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center justify-between">
+        <div className="px-4 h-[60px] border-b-2 border-ob-border bg-ob-base-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <BookmarksIcon size={20} className="text-[#F48120]" />
-            <h2 className="font-semibold text-base">Library</h2>
+            <h2 className="font-semibold text-base font-serif">Library</h2>
           </div>
           <Button
             variant="ghost"
@@ -193,7 +164,7 @@ export const LibraryPanel = ({
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {papers.length === 0 ? (
             <div className="h-full flex items-center justify-center">
-              <p className="text-sm text-neutral-500 dark:text-neutral-400 text-center">
+              <p className="text-sm text-ob-base-100 text-center font-sans">
                 No Saved Papers
               </p>
             </div>
@@ -209,22 +180,22 @@ export const LibraryPanel = ({
               return (
                 <Card
                   key={paper.arxivId}
-                  className="p-0 overflow-hidden hover:shadow-md transition-shadow"
+                  className="p-0 overflow-hidden border-l-[3px] border-l-accent-academic"
                 >
                   {/* Paper Header - Always visible */}
                   <button
                     onClick={() =>
                       shouldTruncate && toggleExpand(paper.arxivId)
                     }
-                    className={`w-full p-3 text-left flex items-start gap-2 transition-colors ${
+                    className={`w-full p-3 text-left flex items-start gap-2 ${
                       shouldTruncate
-                        ? "hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
+                        ? "hover:bg-ob-base-300 cursor-pointer"
                         : "cursor-default"
                     }`}
                     type="button"
                   >
                     {shouldTruncate && (
-                      <span className="mt-0.5 text-neutral-500 dark:text-neutral-400 flex-shrink-0">
+                      <span className="mt-0.5 text-ob-base-100 flex-shrink-0">
                         {isExpanded ? (
                           <CaretDownIcon size={16} />
                         ) : (
@@ -233,9 +204,9 @@ export const LibraryPanel = ({
                       </span>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{displayTitle}</p>
+                      <p className="text-sm font-medium font-serif">{displayTitle}</p>
                       <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                        <span className="text-xs text-ob-base-100 font-sans">
                           {formatDate(paper.savedAt)}
                         </span>
                         {/* Show tags preview when collapsed */}
@@ -244,13 +215,13 @@ export const LibraryPanel = ({
                             {paper.tags.slice(0, 2).map((tag) => (
                               <span
                                 key={tag}
-                                className="text-xs px-1.5 py-0.5 rounded bg-[#F48120]/10 text-[#F48120]"
+                                className="text-xs px-1.5 py-0.5 border border-accent-academic bg-accent-bg text-accent-academic font-sans"
                               >
                                 {tag}
                               </span>
                             ))}
                             {paper.tags.length > 2 && (
-                              <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                              <span className="text-xs text-ob-base-100 font-sans">
                                 +{paper.tags.length - 2}
                               </span>
                             )}
@@ -262,14 +233,14 @@ export const LibraryPanel = ({
 
                   {/* Expanded Section */}
                   {isExpanded && (
-                    <div className="px-3 pb-3 space-y-2 border-t border-neutral-200 dark:border-neutral-700 pt-2">
+                    <div className="px-3 pb-3 space-y-2 border-t border-ob-border pt-2">
                       {/* All tags when expanded */}
                       {paper.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1">
                           {paper.tags.map((tag) => (
                             <span
                               key={tag}
-                              className="text-xs px-1.5 py-0.5 rounded bg-[#F48120]/10 text-[#F48120]"
+                              className="text-xs px-1.5 py-0.5 border border-accent-academic bg-accent-bg text-accent-academic font-sans"
                             >
                               {tag}
                             </span>
@@ -283,7 +254,7 @@ export const LibraryPanel = ({
                           size="sm"
                           variant="secondary"
                           onClick={() => handleSummarize(paper.arxivId)}
-                          className="flex-1 text-xs"
+                          className="flex-1 text-xs font-sans"
                         >
                           <BookOpenIcon size={14} />
                           <span>Summarize</span>
@@ -314,7 +285,6 @@ export const LibraryPanel = ({
             })
           )}
         </div>
-      </div>
-    </>
+    </div>
   );
 };

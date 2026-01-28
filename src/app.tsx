@@ -42,9 +42,9 @@ const toolsRequiringConfirmation: (keyof typeof tools)[] = ["removeSavedPaper"];
 
 function Chat() {
   const [theme, setTheme] = useState<"dark" | "light">(() => {
-    // Safe theme retrieval with fallback to dark
-    const { value } = safeGetItem("theme", "dark");
-    return (value as "dark" | "light") || "dark";
+    // Safe theme retrieval with fallback to light
+    const { value } = safeGetItem("theme", "light");
+    return (value as "dark" | "light") || "light";
   });
   const [showDebug, setShowDebug] = useState(false);
   const [textareaHeight, setTextareaHeight] = useState("auto");
@@ -207,23 +207,18 @@ function Chat() {
   };
 
   return (
-    <div className="h-screen w-full p-4 flex justify-center items-center bg-fixed overflow-hidden">
-      <div
-        className={`h-[calc(100vh-2rem)] w-full mx-auto flex flex-row shadow-xl rounded-md overflow-hidden relative border border-neutral-300 dark:border-neutral-800 transition-[max-width] duration-300 ${
-          isPanelOpen ? "max-w-5xl" : "max-w-lg"
-        }`}
-      >
-        {/* Library Panel */}
-        <LibraryPanel
-          isOpen={isPanelOpen}
-          onClose={() => setIsPanelOpen(false)}
-          papers={libraryPreview}
-          onSendMessage={handlePanelMessage}
-        />
+    <div className="h-screen w-full flex justify-center items-center bg-ob-base-100 overflow-hidden">
+      {/* Library Panel */}
+      <LibraryPanel
+        isOpen={isPanelOpen}
+        onClose={() => setIsPanelOpen(false)}
+        papers={libraryPreview}
+        onSendMessage={handlePanelMessage}
+      />
 
-        {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col min-w-0">
-          <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3 sticky top-0 z-10">
+      {/* Main Chat Area */}
+      <div className="w-full max-w-[900px] flex flex-col h-full overflow-y-auto">
+          <div className="px-4 h-[60px] border-b-2 border-ob-border bg-ob-base-200 flex items-center gap-3 sticky top-0 z-10">
             <div className="flex items-center justify-center h-8 w-8">
               <svg
                 width="28px"
@@ -243,7 +238,7 @@ function Chat() {
             </div>
 
             <div className="flex-1">
-              <h2 className="font-semibold text-base">AI Chat Agent</h2>
+              <h2 className="font-semibold text-base font-serif">PaperScout</h2>
             </div>
 
             <div className="flex items-center gap-2 mr-2">
@@ -303,22 +298,22 @@ function Chat() {
           )}
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 max-h-[calc(100vh-10rem)]">
+          <div className="flex-1 px-4 py-8 space-y-6 pb-4">
             {agentMessages.length === 0 && (
               <div className="h-full flex items-center justify-center">
-                <Card className="p-6 max-w-md mx-auto bg-neutral-100 dark:bg-neutral-900">
+                <Card className="p-6 max-w-md mx-auto bg-ob-base-200">
                   <div className="text-center space-y-4">
                     <div className="bg-[#F48120]/10 text-[#F48120] rounded-full p-3 inline-flex">
                       <RobotIcon size={24} />
                     </div>
-                    <h3 className="font-semibold text-lg">
-                      Welcome to AI Chat
+                    <h3 className="font-semibold text-lg font-serif">
+                      Welcome to PaperScout
                     </h3>
-                    <p className="text-muted-foreground text-sm">
+                    <p className="text-ob-base-200 text-sm font-sans">
                       Start a conversation with your AI assistant. Try asking
                       about:
                     </p>
-                    <ul className="text-sm text-left space-y-2">
+                    <ul className="text-sm text-left space-y-2 font-serif">
                       <li className="flex items-center gap-2">
                         <span className="text-[#F48120]">•</span>
                         <span>Searching for papers on any topic</span>
@@ -365,14 +360,19 @@ function Chat() {
                         <div>
                           {m.parts?.map((part, i) => {
                             if (part.type === "text") {
+                              // Skip rendering empty text parts
+                              if (!part.text.trim()) {
+                                return null;
+                              }
+
                               return (
                                 // biome-ignore lint/suspicious/noArrayIndexKey: immutable index
                                 <div key={i}>
                                   <Card
-                                    className={`p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 ${
+                                    className={`p-3 bg-ob-base-200 max-w-[65ch] ${
                                       isUser
-                                        ? "rounded-br-none"
-                                        : "rounded-bl-none border-assistant-border"
+                                        ? ""
+                                        : "border-l-[3px] border-l-accent-academic"
                                     } ${
                                       part.text.startsWith("scheduled message")
                                         ? "border-accent/50"
@@ -386,16 +386,18 @@ function Chat() {
                                         🕒
                                       </span>
                                     )}
-                                    <MemoizedMarkdown
-                                      id={`${m.id}-${i}`}
-                                      content={part.text.replace(
-                                        /^scheduled message: /,
-                                        ""
-                                      )}
-                                    />
+                                    <div className="font-serif">
+                                      <MemoizedMarkdown
+                                        id={`${m.id}-${i}`}
+                                        content={part.text.replace(
+                                          /^scheduled message: /,
+                                          ""
+                                        )}
+                                      />
+                                    </div>
                                   </Card>
                                   <p
-                                    className={`text-xs text-muted-foreground mt-1 ${
+                                    className={`text-xs text-ob-base-100 mt-1 font-sans ${
                                       isUser ? "text-right" : "text-left"
                                     }`}
                                   >
@@ -467,7 +469,7 @@ function Chat() {
               });
               setTextareaHeight("auto"); // Reset height after submission
             }}
-            className="p-3 bg-neutral-50 absolute bottom-0 left-0 right-0 z-10 border-t border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900"
+            className="p-3 bg-ob-base-100 sticky bottom-0 z-10"
           >
             <div className="flex items-center gap-2">
               <div className="flex-1 relative">
@@ -491,7 +493,7 @@ function Chat() {
                           ? "Connection error. Please refresh."
                           : "Send a message..."
                   }
-                  className="flex w-full border border-neutral-200 dark:border-neutral-700 px-3 py-2  ring-offset-background placeholder:text-neutral-500 dark:placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-neutral-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl text-base! pb-10 dark:bg-neutral-900"
+                  className="flex w-full font-serif px-3 py-2 md:text-sm min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none text-base! pb-10"
                   value={agentInput}
                   onChange={(e) => {
                     handleAgentInputChange(e);
@@ -540,7 +542,6 @@ function Chat() {
               </div>
             </div>
           </form>
-        </div>
       </div>
     </div>
   );
