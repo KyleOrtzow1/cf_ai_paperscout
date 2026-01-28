@@ -160,7 +160,7 @@ export const LibraryPanel = ({
       </div>
 
       {/* Paper list or empty state */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
         {papers.length === 0 ? (
           <div className="h-full flex items-center justify-center">
             <p className="text-sm text-ob-base-100 text-center font-sans">
