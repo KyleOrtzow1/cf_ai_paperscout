@@ -39,7 +39,7 @@
   --text-base--line-height: 1.7;
 
   /* Typography */
-  --font-family-serif: 'Lora', 'Crimson Text', Georgia, serif;
+  --font-family-serif: "Lora", "Crimson Text", Georgia, serif;
   --font-family-sans: Inter, system-ui, sans-serif;
   --line-length-optimal: 65ch;
 
@@ -83,24 +83,24 @@
   --color-blue-800: oklch(0.424 0.199 265.638);
 
   /* Academic Light Mode Colors */
-  --color-paper-white: #FAFAF8;
-  --color-card-white: #FFFFFF;
-  --color-input-bg: #FCFCFB;
+  --color-paper-white: #fafaf8;
+  --color-card-white: #ffffff;
+  --color-input-bg: #fcfcfb;
 
-  --color-text-primary: #1A1A1A;
-  --color-text-secondary: #4A4A4A;
-  --color-text-tertiary: #6B6B6B;
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #4a4a4a;
+  --color-text-tertiary: #6b6b6b;
 
-  --color-border-light: #D4D4D4;
-  --color-border-medium: #A0A0A0;
+  --color-border-light: #d4d4d4;
+  --color-border-medium: #a0a0a0;
   --color-border-dark: #707070;
 
-  --color-accent-academic: #B8651B;
-  --color-accent-hover: #9B5416;
-  --color-accent-bg: #F5EDE5;
+  --color-accent-academic: #b8651b;
+  --color-accent-hover: #9b5416;
+  --color-accent-bg: #f5ede5;
 
-  --color-success-academic: #2D6A2C;
-  --color-error-academic: #A52A2A;
+  --color-success-academic: #2d6a2c;
+  --color-error-academic: #a52a2a;
 
   /* Component colors */
 
